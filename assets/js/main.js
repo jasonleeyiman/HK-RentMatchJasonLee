@@ -4,8 +4,12 @@ let isLoggedIn = typeof window !== 'undefined' && typeof window.isLoggedIn !== '
 let currentUserRole = typeof window !== 'undefined' && typeof window.currentUserRole === 'string'
     ? window.currentUserRole
     : '';
+let currentUserId = typeof window !== 'undefined' && Number.isInteger(Number(window.currentUserId))
+    ? Number(window.currentUserId)
+    : 0;
 let favorites = getInitialFavorites();
 let currentDetailPostId = null;
+let currentDetailIsOwner = false;
 
 // ==================== Detail Slider State ====================
 let sliderImages = [];
@@ -428,6 +432,8 @@ function fillDetailModalFromCard(card) {
     const data = card.dataset;
     const type = data.type || 'rent';
     const isSublet = type === 'sublet';
+    const ownerId = Number(data.ownerId || '0');
+    currentDetailIsOwner = data.isOwner === 'true' || (currentUserId > 0 && ownerId > 0 && currentUserId === ownerId);
 
     setText('detailTitle', data.title || '-');
     setText('detailPrice', data.price || '0');
@@ -528,6 +534,29 @@ function fillDetailModalFromCard(card) {
         if (data.imageThumb2 && data.imageThumb2 !== data.imageThumb1 && data.imageThumb2 !== data.imageMain) imgs.push(data.imageThumb2);
     }
     initDetailSlider(imgs);
+    updateDetailPrimaryButton();
+}
+
+function updateDetailPrimaryButton() {
+    const btn = document.getElementById('detailPrimaryBtn');
+    if (!btn) return;
+    btn.textContent = currentDetailIsOwner ? '编辑帖子' : '发送申请';
+}
+
+function handleDetailPrimaryAction() {
+    if (currentDetailIsOwner) {
+        if (!currentDetailPostId) return;
+        const frame = document.getElementById('detailEditFrame');
+        const editUrl = buildProjectUrl('/post/create.php') + '?mode=edit&embed=1&post_id=' + encodeURIComponent(String(currentDetailPostId));
+        if (frame) {
+            frame.src = editUrl;
+            openModal('detailEditModal');
+        } else {
+            window.location.href = editUrl;
+        }
+        return;
+    }
+    openModal('applyModal');
 }
 
 function updateDetailFavoriteButton() {
@@ -718,5 +747,14 @@ document.querySelectorAll('.password-toggle').forEach(btn => {
     btn.addEventListener('mouseleave', hide);
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); show(); }, { passive: false });
     btn.addEventListener('touchend', hide);
+});
+
+window.addEventListener('message', function(event) {
+    const payload = event && event.data ? event.data : null;
+    if (!payload || payload.type !== 'profile_post_edit_saved') return;
+    closeModal('detailEditModal');
+    closeModal('detailModal');
+    showToast('帖子已更新。', 'success');
+    window.location.reload();
 });
 

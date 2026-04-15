@@ -191,6 +191,275 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
     }
 
+    if ($action === 'post_get_edit') {
+        $postId = (int) ($_POST['post_id'] ?? 0);
+        if ($postId <= 0) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '帖子参数无效。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '帖子参数无效。');
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT id, type, title, price, floor, rent_period, region, school_scope, metro_stations, gender_requirement, need_count, remaining_months, move_in_date, renewable, content
+             FROM posts
+             WHERE id = :post_id AND user_id = :user_id AND status <> 'deleted'
+             LIMIT 1"
+        );
+        $stmt->execute([
+            ':post_id' => $postId,
+            ':user_id' => $currentUserId,
+        ]);
+        $postRow = $stmt->fetch();
+        if (!$postRow) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '未找到可编辑帖子。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '未找到可编辑帖子。');
+        }
+
+        if ($isAjaxRequest) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'post' => [
+                    'id' => (int) $postRow['id'],
+                    'type' => (string) ($postRow['type'] ?? ''),
+                    'title' => (string) ($postRow['title'] ?? ''),
+                    'price' => (float) ($postRow['price'] ?? 0),
+                    'floor' => (string) ($postRow['floor'] ?? ''),
+                    'rent_period' => (string) ($postRow['rent_period'] ?? ''),
+                    'region' => (string) ($postRow['region'] ?? ''),
+                    'school_scope' => (string) ($postRow['school_scope'] ?? ''),
+                    'metro_stations' => (string) ($postRow['metro_stations'] ?? ''),
+                    'gender_requirement' => (string) ($postRow['gender_requirement'] ?? ''),
+                    'need_count' => (string) ($postRow['need_count'] ?? ''),
+                    'remaining_months' => (string) ($postRow['remaining_months'] ?? ''),
+                    'move_in_date' => (string) ($postRow['move_in_date'] ?? ''),
+                    'renewable' => (string) ($postRow['renewable'] ?? ''),
+                    'content' => (string) ($postRow['content'] ?? ''),
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
+    if ($action === 'post_update') {
+        $postId = (int) ($_POST['post_id'] ?? 0);
+        $title = trim((string) ($_POST['title'] ?? ''));
+        $priceRaw = trim((string) ($_POST['price'] ?? ''));
+        $floor = trim((string) ($_POST['floor'] ?? ''));
+        $rentPeriod = trim((string) ($_POST['rent_period'] ?? ''));
+        $region = trim((string) ($_POST['region'] ?? ''));
+        $schoolScope = trim((string) ($_POST['school_scope'] ?? ''));
+        $metroStations = trim((string) ($_POST['metro_stations'] ?? ''));
+        $genderRequirement = trim((string) ($_POST['gender_requirement'] ?? ''));
+        $needCount = trim((string) ($_POST['need_count'] ?? ''));
+        $remainingMonths = trim((string) ($_POST['remaining_months'] ?? ''));
+        $moveInDate = trim((string) ($_POST['move_in_date'] ?? ''));
+        $renewable = trim((string) ($_POST['renewable'] ?? ''));
+        $content = trim((string) ($_POST['content'] ?? ''));
+
+        $postStmt = $pdo->prepare(
+            "SELECT id, type
+             FROM posts
+             WHERE id = :post_id AND user_id = :user_id AND status <> 'deleted'
+             LIMIT 1"
+        );
+        $postStmt->execute([
+            ':post_id' => $postId,
+            ':user_id' => $currentUserId,
+        ]);
+        $ownedPost = $postStmt->fetch();
+        if (!$ownedPost) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '未找到可编辑帖子。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '未找到可编辑帖子。');
+        }
+
+        if ($title === '' || mb_strlen($title, 'UTF-8') < 5 || mb_strlen($title, 'UTF-8') > 50) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '标题需为 5-50 个字符。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '标题需为 5-50 个字符。');
+        }
+        if ($priceRaw === '' || !is_numeric($priceRaw)) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '请输入有效价格。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '请输入有效价格。');
+        }
+
+        $postType = (string) ($ownedPost['type'] ?? 'rent');
+        $maxPrice = $postType === 'roommate-nosource' ? 50000 : 100000;
+        $price = (float) $priceRaw;
+        if ($price < 1000 || $price > $maxPrice) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '价格需在 1000-' . $maxPrice . ' 之间。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '价格需在 1000-' . $maxPrice . ' 之间。');
+        }
+        if ($region === '' || $schoolScope === '' || $metroStations === '') {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '区域、学校范围和地铁站为必填项。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '区域、学校范围和地铁站为必填项。');
+        }
+
+        if (in_array($postType, ['rent', 'roommate-source'], true)) {
+            if ($floor === '' || preg_match('/^\d+$/', $floor) !== 1) {
+                if ($isAjaxRequest) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => '楼层仅支持整数。'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                redirect_profile($targetSection, 'error', '楼层仅支持整数。');
+            }
+        } elseif ($floor !== '' && preg_match('/^\d+$/', $floor) !== 1) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '楼层仅支持整数。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '楼层仅支持整数。');
+        }
+
+        if ($postType !== 'sublet' && !in_array($rentPeriod, ['short', 'medium', 'long'], true)) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '请选择租期。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '请选择租期。');
+        }
+        if (in_array($postType, ['roommate-source', 'roommate-nosource', 'sublet'], true) && !in_array($genderRequirement, ['male', 'female', 'any'], true)) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => false, 'message' => '请选择性别要求。'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            redirect_profile($targetSection, 'error', '请选择性别要求。');
+        }
+        if ($postType === 'roommate-source') {
+            $nc = (int) $needCount;
+            if ($needCount === '' || $nc < 1 || $nc > 10) {
+                if ($isAjaxRequest) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => '需求人数需为 1-10。'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                redirect_profile($targetSection, 'error', '需求人数需为 1-10。');
+            }
+        }
+        if ($postType === 'sublet') {
+            $rm = (int) $remainingMonths;
+            if ($remainingMonths === '' || $rm < 1 || $rm > 36) {
+                if ($isAjaxRequest) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => '剩余租期需为 1-36 个月。'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                redirect_profile($targetSection, 'error', '剩余租期需为 1-36 个月。');
+            }
+            if ($moveInDate === '') {
+                if ($isAjaxRequest) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => '请选择最早入住日期。'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                redirect_profile($targetSection, 'error', '请选择最早入住日期。');
+            }
+            if ($renewable !== '' && !in_array($renewable, ['yes', 'no'], true)) {
+                if ($isAjaxRequest) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => false, 'message' => '可续租选项无效。'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+                redirect_profile($targetSection, 'error', '可续租选项无效。');
+            }
+            if ($rm <= 6) {
+                $rentPeriod = 'short';
+            } elseif ($rm <= 12) {
+                $rentPeriod = 'medium';
+            } else {
+                $rentPeriod = 'long';
+            }
+        }
+
+        $floorValue = $floor === '' ? null : (string) ((int) $floor);
+        $updateStmt = $pdo->prepare(
+            "UPDATE posts
+             SET title = :title,
+                 price = :price,
+                 floor = :floor,
+                 rent_period = :rent_period,
+                 region = :region,
+                 school_scope = :school_scope,
+                 metro_stations = :metro_stations,
+                 gender_requirement = :gender_requirement,
+                 need_count = :need_count,
+                 remaining_months = :remaining_months,
+                 move_in_date = :move_in_date,
+                 renewable = :renewable,
+                 content = :content
+             WHERE id = :post_id AND user_id = :user_id AND status <> 'deleted'
+             LIMIT 1"
+        );
+        $updateStmt->execute([
+            ':title' => $title,
+            ':price' => $price,
+            ':floor' => $floorValue,
+            ':rent_period' => $rentPeriod !== '' ? $rentPeriod : null,
+            ':region' => $region,
+            ':school_scope' => $schoolScope,
+            ':metro_stations' => $metroStations,
+            ':gender_requirement' => $genderRequirement !== '' ? $genderRequirement : null,
+            ':need_count' => $postType === 'roommate-source' ? (int) $needCount : null,
+            ':remaining_months' => $postType === 'sublet' ? (int) $remainingMonths : null,
+            ':move_in_date' => $postType === 'sublet' ? $moveInDate : null,
+            ':renewable' => $postType === 'sublet' && $renewable !== '' ? $renewable : null,
+            ':content' => $content !== '' ? $content : null,
+            ':post_id' => $postId,
+            ':user_id' => $currentUserId,
+        ]);
+
+        if ($isAjaxRequest) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'message' => '帖子已更新。',
+                'post' => [
+                    'id' => $postId,
+                    'title' => $title,
+                    'price' => $price,
+                    'region' => $region,
+                    'school_scope' => $schoolScope,
+                    'metro_stations' => $metroStations,
+                ],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        redirect_profile($targetSection, 'success', '帖子已更新。', [
+            'posts_filter' => $postsFilterPost,
+        ]);
+    }
+
     if ($action === 'favorite_remove') {
         $postId = (int) ($_POST['post_id'] ?? 0);
         if ($postId <= 0) {
@@ -745,7 +1014,7 @@ include __DIR__ . '/includes/header.php';
                                 $thumb = resolve_post_image_url($images[0] ?? '') ?: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=300&h=200&fit=crop';
                                 $dateText = !empty($post['created_at']) ? date('Y-m-d', strtotime((string) $post['created_at'])) : '-';
                                 ?>
-                                <div class="my-post-card" data-post-type="<?php echo htmlspecialchars($postType); ?>">
+                                <div class="my-post-card" data-post-id="<?php echo (int) $post['id']; ?>" data-post-type="<?php echo htmlspecialchars($postType); ?>">
                                     <div class="my-post-header">
                                         <span class="my-post-type-badge <?php echo htmlspecialchars($badge['class']); ?>"><?php echo htmlspecialchars($badge['text']); ?></span>
                                         <span class="my-post-status <?php echo $postStatus === 'active' ? 'active' : 'hidden'; ?>">
@@ -769,9 +1038,9 @@ include __DIR__ . '/includes/header.php';
                                     </div>
 
                                     <div class="my-post-actions">
-                                        <a class="btn btn-outline btn-small icon-only-btn" href="<?php echo htmlspecialchars(project_base_url('post/edit.php?id=' . (int) $post['id'])); ?>" title="编辑" aria-label="编辑">
+                                        <button class="btn btn-outline btn-small icon-only-btn js-post-edit-btn" type="button" title="编辑" aria-label="编辑">
                                             <span class="icon-feather" style="--icon-url:url('<?php echo htmlspecialchars(project_base_url('feather/edit.svg')); ?>');"></span>
-                                        </a>
+                                        </button>
                                         <form method="post" class="js-post-status-form">
                                             <input type="hidden" name="action" value="post_set_status">
                                             <input type="hidden" name="section" value="posts">
@@ -1018,6 +1287,104 @@ include __DIR__ . '/includes/header.php';
     </div>
 </main>
 
+<div class="modal-overlay" id="profilePostEditFrameModal">
+    <div class="modal" style="max-width:980px;width:95vw;height:88vh;padding:0;overflow:hidden;">
+        <div class="modal-header" style="padding:12px 16px;">
+            <h2 class="modal-title">编辑帖子</h2>
+            <button class="modal-close" type="button" onclick="closeModal('profilePostEditFrameModal')">×</button>
+        </div>
+        <div style="height:calc(100% - 56px);">
+            <iframe id="profilePostEditFrame" title="编辑帖子" style="width:100%;height:100%;border:0;" src="about:blank"></iframe>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="profilePostEditModal">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header">
+            <h2 class="modal-title">编辑帖子</h2>
+            <button class="modal-close" type="button" onclick="closeModal('profilePostEditModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="profilePostEditForm">
+                <input type="hidden" name="action" value="post_update">
+                <input type="hidden" name="section" value="posts">
+                <input type="hidden" name="posts_filter" value="<?php echo htmlspecialchars($postsFilter); ?>">
+                <input type="hidden" name="post_id" id="profileEditPostId" value="">
+                <input type="hidden" id="profileEditPostType" value="">
+
+                <div class="form-group">
+                    <label class="form-label">标题 <span class="required">*</span></label>
+                    <input type="text" class="form-input" name="title" id="profileEditTitle" maxlength="50" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">价格（HKD/月） <span class="required">*</span></label>
+                    <input type="number" class="form-input" name="price" id="profileEditPrice" min="1000" step="500" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">楼层</label>
+                    <input type="number" class="form-input" name="floor" id="profileEditFloor" min="0" step="1" inputmode="numeric" placeholder="仅整数">
+                </div>
+                <div class="form-group" id="profileEditRentPeriodWrap">
+                    <label class="form-label">租期 <span class="required">*</span></label>
+                    <select class="form-input" name="rent_period" id="profileEditRentPeriod">
+                        <option value="">请选择租期</option>
+                        <option value="short">6个月以下</option>
+                        <option value="medium">6个月至1年</option>
+                        <option value="long">1年及以上</option>
+                    </select>
+                </div>
+                <div class="form-group" id="profileEditGenderWrap">
+                    <label class="form-label">性别要求 <span class="required">*</span></label>
+                    <select class="form-input" name="gender_requirement" id="profileEditGenderRequirement">
+                        <option value="">请选择</option>
+                        <option value="male">男生</option>
+                        <option value="female">女生</option>
+                        <option value="any">不限</option>
+                    </select>
+                </div>
+                <div class="form-group" id="profileEditNeedCountWrap">
+                    <label class="form-label">需求人数 <span class="required">*</span></label>
+                    <input type="number" class="form-input" name="need_count" id="profileEditNeedCount" min="1" max="10" step="1">
+                </div>
+                <div class="form-group" id="profileEditRemainingMonthsWrap">
+                    <label class="form-label">剩余租期（月） <span class="required">*</span></label>
+                    <input type="number" class="form-input" name="remaining_months" id="profileEditRemainingMonths" min="1" max="36" step="1">
+                </div>
+                <div class="form-group" id="profileEditMoveInDateWrap">
+                    <label class="form-label">最早入住日期 <span class="required">*</span></label>
+                    <input type="date" class="form-input" name="move_in_date" id="profileEditMoveInDate">
+                </div>
+                <div class="form-group" id="profileEditRenewableWrap">
+                    <label class="form-label">是否可续租</label>
+                    <select class="form-input" name="renewable" id="profileEditRenewable">
+                        <option value="">未选择</option>
+                        <option value="yes">可续租</option>
+                        <option value="no">不可续租</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">所属区域 <span class="required">*</span></label>
+                    <input type="text" class="form-input" name="region" id="profileEditRegion" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">学校范围 <span class="required">*</span></label>
+                    <input type="text" class="form-input" name="school_scope" id="profileEditSchoolScope" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">附近地铁站 <span class="required">*</span></label>
+                    <input type="text" class="form-input" name="metro_stations" id="profileEditMetroStations" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">其他信息</label>
+                    <textarea class="form-input no-resize" name="content" id="profileEditContent" rows="4" maxlength="100"></textarea>
+                </div>
+                <button class="btn btn-primary btn-block" id="profilePostEditSaveBtn" type="submit">保存修改</button>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="profileDetailModal">
     <div class="modal detail-modal">
         <div class="modal-header">
@@ -1258,7 +1625,173 @@ function openProfilePostDetail(postId) {
         });
 }
 
+function toggleProfilePostEditFields(postType) {
+    const floorWrap = document.getElementById('profileEditFloor') ? document.getElementById('profileEditFloor').closest('.form-group') : null;
+    const rentPeriodWrap = document.getElementById('profileEditRentPeriodWrap');
+    const genderWrap = document.getElementById('profileEditGenderWrap');
+    const needCountWrap = document.getElementById('profileEditNeedCountWrap');
+    const remainingMonthsWrap = document.getElementById('profileEditRemainingMonthsWrap');
+    const moveInDateWrap = document.getElementById('profileEditMoveInDateWrap');
+    const renewableWrap = document.getElementById('profileEditRenewableWrap');
+
+    const floorInput = document.getElementById('profileEditFloor');
+    const rentPeriodInput = document.getElementById('profileEditRentPeriod');
+    const genderInput = document.getElementById('profileEditGenderRequirement');
+    const needCountInput = document.getElementById('profileEditNeedCount');
+    const remainingMonthsInput = document.getElementById('profileEditRemainingMonths');
+    const moveInDateInput = document.getElementById('profileEditMoveInDate');
+
+    const isSublet = postType === 'sublet';
+    const isRoommateSource = postType === 'roommate-source';
+    const isRoommateNoSource = postType === 'roommate-nosource';
+    const needFloor = postType === 'rent' || isRoommateSource;
+
+    if (floorWrap) floorWrap.style.display = needFloor || isSublet ? '' : 'none';
+    if (floorInput) floorInput.required = needFloor;
+
+    if (rentPeriodWrap) rentPeriodWrap.style.display = isSublet ? 'none' : '';
+    if (rentPeriodInput) rentPeriodInput.required = !isSublet;
+
+    if (genderWrap) genderWrap.style.display = (isRoommateSource || isRoommateNoSource || isSublet) ? '' : 'none';
+    if (genderInput) genderInput.required = (isRoommateSource || isRoommateNoSource || isSublet);
+
+    if (needCountWrap) needCountWrap.style.display = isRoommateSource ? '' : 'none';
+    if (needCountInput) needCountInput.required = isRoommateSource;
+
+    if (remainingMonthsWrap) remainingMonthsWrap.style.display = isSublet ? '' : 'none';
+    if (moveInDateWrap) moveInDateWrap.style.display = isSublet ? '' : 'none';
+    if (renewableWrap) renewableWrap.style.display = isSublet ? '' : 'none';
+    if (remainingMonthsInput) remainingMonthsInput.required = isSublet;
+    if (moveInDateInput) moveInDateInput.required = isSublet;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    const postEditForm = document.getElementById('profilePostEditForm');
+    document.querySelectorAll('.js-post-edit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const card = btn.closest('.my-post-card');
+            if (!card) return;
+            const postId = Number(card.getAttribute('data-post-id') || '0');
+            if (!Number.isInteger(postId) || postId <= 0) return;
+
+            const editFrame = document.getElementById('profilePostEditFrame');
+            if (editFrame) {
+                const baseUrl = <?php echo json_encode(project_base_url('post/create.php'), JSON_UNESCAPED_UNICODE); ?>;
+                editFrame.src = baseUrl + '?mode=edit&embed=1&post_id=' + encodeURIComponent(String(postId));
+                openModal('profilePostEditFrameModal');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'post_get_edit');
+            fd.append('section', 'posts');
+            fd.append('post_id', String(postId));
+            fd.append('posts_filter', <?php echo json_encode($postsFilter, JSON_UNESCAPED_UNICODE); ?>);
+
+            fetch(<?php echo json_encode(profile_section_url('posts', ['ajax' => '1']), JSON_UNESCAPED_UNICODE); ?>, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd,
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (!data || data.success !== true || !data.post) {
+                        throw new Error(data && data.message ? data.message : '加载编辑数据失败。');
+                    }
+                    const post = data.post;
+                    const postType = String(post.type || card.getAttribute('data-post-type') || '');
+                    const priceInput = document.getElementById('profileEditPrice');
+                    const floorInput = document.getElementById('profileEditFloor');
+
+                    document.getElementById('profileEditPostId').value = String(post.id || '');
+                    document.getElementById('profileEditPostType').value = postType;
+                    document.getElementById('profileEditTitle').value = String(post.title || '');
+                    document.getElementById('profileEditRegion').value = String(post.region || '');
+                    document.getElementById('profileEditSchoolScope').value = String(post.school_scope || '');
+                    document.getElementById('profileEditMetroStations').value = String(post.metro_stations || '');
+                    document.getElementById('profileEditContent').value = String(post.content || '');
+                    document.getElementById('profileEditRentPeriod').value = String(post.rent_period || '');
+                    document.getElementById('profileEditGenderRequirement').value = String(post.gender_requirement || '');
+                    document.getElementById('profileEditNeedCount').value = String(post.need_count || '');
+                    document.getElementById('profileEditRemainingMonths').value = String(post.remaining_months || '');
+                    document.getElementById('profileEditMoveInDate').value = String(post.move_in_date || '');
+                    document.getElementById('profileEditRenewable').value = String(post.renewable || '');
+                    if (priceInput) {
+                        priceInput.value = String(post.price || '');
+                        priceInput.max = postType === 'roommate-nosource' ? '50000' : '100000';
+                    }
+                    if (floorInput) {
+                        floorInput.value = String(post.floor || '');
+                    }
+                    toggleProfilePostEditFields(postType);
+                    openModal('profilePostEditModal');
+                })
+                .catch(function(error) {
+                    if (typeof showToast === 'function') {
+                        showToast(error.message || '加载编辑数据失败。', 'error');
+                    }
+                });
+        });
+    });
+
+    window.addEventListener('message', function(event) {
+        const payload = event && event.data ? event.data : null;
+        if (!payload || payload.type !== 'profile_post_edit_saved') return;
+        closeModal('profilePostEditFrameModal');
+        if (typeof showToast === 'function') {
+            showToast('帖子已更新。', 'success');
+        }
+        window.location.href = <?php echo json_encode(profile_section_url('posts', ['posts_filter' => $postsFilter]), JSON_UNESCAPED_UNICODE); ?>;
+    });
+
+    if (postEditForm) {
+        postEditForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const saveBtn = document.getElementById('profilePostEditSaveBtn');
+            if (saveBtn) saveBtn.disabled = true;
+
+            const fd = new FormData(postEditForm);
+            fetch(<?php echo json_encode(profile_section_url('posts', ['ajax' => '1']), JSON_UNESCAPED_UNICODE); ?>, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd,
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (!data || data.success !== true || !data.post) {
+                        throw new Error(data && data.message ? data.message : '更新失败，请稍后重试。');
+                    }
+                    const post = data.post;
+                    const card = document.querySelector('.my-post-card[data-post-id="' + String(post.id) + '"]');
+                    if (card) {
+                        const titleEl = card.querySelector('.my-post-title');
+                        const priceEl = card.querySelector('.my-post-price');
+                        const regionTag = card.querySelector('.tag-region');
+                        const metroTag = card.querySelector('.tag-metro');
+                        const schoolTag = card.querySelector('.tag-school');
+                        if (titleEl) titleEl.textContent = String(post.title || '');
+                        if (priceEl) priceEl.textContent = Number(post.price || 0).toLocaleString();
+                        if (regionTag) regionTag.textContent = String(post.region || '-');
+                        if (metroTag) metroTag.textContent = '🚇 ' + String(post.metro_stations || '-');
+                        if (schoolTag) schoolTag.textContent = String(post.school_scope || '-');
+                    }
+
+                    closeModal('profilePostEditModal');
+                    if (typeof showToast === 'function') {
+                        showToast(data.message || '帖子已更新。', 'success');
+                    }
+                })
+                .catch(function(error) {
+                    if (typeof showToast === 'function') {
+                        showToast(error.message || '更新失败，请稍后重试。', 'error');
+                    }
+                })
+                .finally(function() {
+                    if (saveBtn) saveBtn.disabled = false;
+                });
+        });
+    }
+
     const profileEditForm = document.getElementById('profileEditForm');
     if (profileEditForm) {
         profileEditForm.addEventListener('submit', function(e) {

@@ -8,6 +8,10 @@ $maxImageCount     = 3;
 $maxImageSizeBytes = 5 * 1024 * 1024;
 $validTypes        = ['rent', 'roommate-source', 'roommate-nosource', 'sublet'];
 $userRole          = (string) ($user['role'] ?? '');
+$isEditMode        = trim((string) ($_GET['mode'] ?? '')) === 'edit';
+$isEmbedMode       = trim((string) ($_GET['embed'] ?? '')) === '1';
+$editPostId        = (int) ($_GET['post_id'] ?? $_POST['post_id'] ?? 0);
+$editingPost       = null;
 
 function can_publish_type(string $role, string $type): bool
 {
@@ -84,6 +88,56 @@ $form = [
     'content'            => '',
 ];
 
+if ($isEditMode) {
+    if ($editPostId <= 0) {
+        $errors['post_id'] = '编辑帖子参数无效。';
+    } else {
+        $editStmt = $pdo->prepare(
+            "SELECT id, user_id, type, title, content, price, floor, rent_period, region, school_scope, metro_stations, gender_requirement, need_count, remaining_months, move_in_date, renewable, images
+             FROM posts
+             WHERE id = :id AND user_id = :user_id AND status <> 'deleted'
+             LIMIT 1"
+        );
+        $editStmt->execute([
+            ':id' => $editPostId,
+            ':user_id' => (int) $user['id'],
+        ]);
+        $editingPost = $editStmt->fetch() ?: null;
+        if (!$editingPost) {
+            $errors['post_id'] = '未找到可编辑帖子。';
+        } elseif ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $dbType = (string) ($editingPost['type'] ?? 'rent');
+            $formType = $dbType;
+            $roommateMode = '';
+            if ($dbType === 'roommate-source') {
+                $formType = 'roommate';
+                $roommateMode = 'source';
+            } elseif ($dbType === 'roommate-nosource') {
+                $formType = 'roommate';
+                $roommateMode = 'nosource';
+            }
+
+            $form = [
+                'type'               => $formType,
+                'roommate_mode'      => $roommateMode,
+                'title'              => (string) ($editingPost['title'] ?? ''),
+                'price'              => (string) ($editingPost['price'] ?? ''),
+                'floor'              => (string) ($editingPost['floor'] ?? ''),
+                'rent_period'        => (string) ($editingPost['rent_period'] ?? ''),
+                'remaining_months'   => (string) ($editingPost['remaining_months'] ?? ''),
+                'move_in_date'       => (string) ($editingPost['move_in_date'] ?? ''),
+                'renewable'          => (string) ($editingPost['renewable'] ?? ''),
+                'gender_requirement' => (string) ($editingPost['gender_requirement'] ?? ''),
+                'need_count'         => (string) ($editingPost['need_count'] ?? ''),
+                'region'             => (string) ($editingPost['region'] ?? ''),
+                'school_scope'       => (string) ($editingPost['school_scope'] ?? ''),
+                'metro_stations'     => (string) ($editingPost['metro_stations'] ?? ''),
+                'content'            => (string) ($editingPost['content'] ?? ''),
+            ];
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($form as $key => $_) {
         $form[$key] = trim($_POST[$key] ?? '');
@@ -127,9 +181,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['price'] = '请输入1000-' . $maxPrice . '之间的数字。';
     }
 
-    // 楼层（租房和有房找室友必填）
+    // 楼层：仅允许整数（不带文字）
     if (in_array($postType, ['rent', 'roommate-source'], true) && $form['floor'] === '') {
         $errors['floor'] = '请填写楼层信息。';
+    } elseif ($form['floor'] !== '' && preg_match('/^\d+$/', $form['floor']) !== 1) {
+        $errors['floor'] = '楼层仅支持输入整数，不可包含文字。';
+    } elseif ($form['floor'] !== '') {
+        $form['floor'] = (string) ((int) $form['floor']);
     }
 
     // 租期（转租不要求用户填写）
@@ -302,46 +360,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 写库
     if (empty($errors)) {
-        $stmt = $pdo->prepare(
-            'INSERT INTO posts (
-                user_id, type, title, content, price, floor,
-                rent_period, region, school_scope, metro_stations,
-                gender_requirement, need_count, remaining_months, move_in_date,
-                renewable, images, status
-             ) VALUES (
-                :user_id, :type, :title, :content, :price, :floor,
-                :rent_period, :region, :school_scope, :metro_stations,
-                :gender_requirement, :need_count, :remaining_months, :move_in_date,
-                :renewable, :images, :status
-             )'
-        );
-        $stmt->execute([
-            ':user_id'            => $user['id'],
-            ':type'               => $postType,
-            ':title'              => $form['title'],
-            ':content'            => $form['content'],
-            ':price'              => (float)$form['price'],
-            ':floor'              => ($form['floor'] !== '') ? $form['floor'] : null,
-            ':rent_period'        => $rentPeriodForDb,
-            ':region'             => $form['region'],
-            ':school_scope'       => ($form['school_scope'] !== '') ? implode(', ', $selectedSchools) : null,
-            ':metro_stations'     => ($form['metro_stations'] !== '') ? $form['metro_stations'] : null,
-            ':gender_requirement' => ($form['gender_requirement'] !== '') ? $form['gender_requirement'] : null,
-            ':need_count'         => ($form['need_count'] !== '') ? (int)$form['need_count'] : null,
-            ':remaining_months'   => ($postType === 'sublet' && $form['remaining_months'] !== '') ? (int)$form['remaining_months'] : null,
-            ':move_in_date'       => ($postType === 'sublet' && $form['move_in_date'] !== '') ? $form['move_in_date'] : null,
-            ':renewable'          => ($postType === 'sublet' && $form['renewable'] !== '') ? $form['renewable'] : null,
-            ':images'             => !empty($savedImagePaths) ? json_encode($savedImagePaths, JSON_UNESCAPED_UNICODE) : null,
-            ':status'             => 'active',
-        ]);
-        $redirectTab = 'rent';
-        if ($postType === 'sublet') {
-            $redirectTab = 'sublet';
-        } elseif (in_array($postType, ['roommate-source', 'roommate-nosource'], true)) {
-            $redirectTab = 'roommate';
+        if ($isEditMode) {
+            $imagesJson = !empty($savedImagePaths)
+                ? json_encode($savedImagePaths, JSON_UNESCAPED_UNICODE)
+                : ($editingPost['images'] ?? null);
+
+            $stmt = $pdo->prepare(
+                'UPDATE posts SET
+                    type = :type,
+                    title = :title,
+                    content = :content,
+                    price = :price,
+                    floor = :floor,
+                    rent_period = :rent_period,
+                    region = :region,
+                    school_scope = :school_scope,
+                    metro_stations = :metro_stations,
+                    gender_requirement = :gender_requirement,
+                    need_count = :need_count,
+                    remaining_months = :remaining_months,
+                    move_in_date = :move_in_date,
+                    renewable = :renewable,
+                    images = :images
+                 WHERE id = :id AND user_id = :user_id AND status <> \'deleted\'
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                ':type'               => $postType,
+                ':title'              => $form['title'],
+                ':content'            => $form['content'],
+                ':price'              => (float)$form['price'],
+                ':floor'              => ($form['floor'] !== '') ? $form['floor'] : null,
+                ':rent_period'        => $rentPeriodForDb,
+                ':region'             => $form['region'],
+                ':school_scope'       => ($form['school_scope'] !== '') ? implode(', ', $selectedSchools) : null,
+                ':metro_stations'     => ($form['metro_stations'] !== '') ? $form['metro_stations'] : null,
+                ':gender_requirement' => ($form['gender_requirement'] !== '') ? $form['gender_requirement'] : null,
+                ':need_count'         => ($form['need_count'] !== '') ? (int)$form['need_count'] : null,
+                ':remaining_months'   => ($postType === 'sublet' && $form['remaining_months'] !== '') ? (int)$form['remaining_months'] : null,
+                ':move_in_date'       => ($postType === 'sublet' && $form['move_in_date'] !== '') ? $form['move_in_date'] : null,
+                ':renewable'          => ($postType === 'sublet' && $form['renewable'] !== '') ? $form['renewable'] : null,
+                ':images'             => $imagesJson,
+                ':id'                 => $editPostId,
+                ':user_id'            => (int)$user['id'],
+            ]);
+
+            if ($isEmbedMode) {
+                header('Content-Type: text/html; charset=UTF-8');
+                echo '<!doctype html><html><body><script>window.parent.postMessage({type:"profile_post_edit_saved",postId:' . (int)$editPostId . '}, "*");</script></body></html>';
+                exit;
+            }
+
+            header('Location: ../profile.php?section=posts&notice_type=success&notice=' . urlencode('帖子已更新。'));
+            exit;
+        } else {
+            $stmt = $pdo->prepare(
+                'INSERT INTO posts (
+                    user_id, type, title, content, price, floor,
+                    rent_period, region, school_scope, metro_stations,
+                    gender_requirement, need_count, remaining_months, move_in_date,
+                    renewable, images, status
+                 ) VALUES (
+                    :user_id, :type, :title, :content, :price, :floor,
+                    :rent_period, :region, :school_scope, :metro_stations,
+                    :gender_requirement, :need_count, :remaining_months, :move_in_date,
+                    :renewable, :images, :status
+                 )'
+            );
+            $stmt->execute([
+                ':user_id'            => $user['id'],
+                ':type'               => $postType,
+                ':title'              => $form['title'],
+                ':content'            => $form['content'],
+                ':price'              => (float)$form['price'],
+                ':floor'              => ($form['floor'] !== '') ? $form['floor'] : null,
+                ':rent_period'        => $rentPeriodForDb,
+                ':region'             => $form['region'],
+                ':school_scope'       => ($form['school_scope'] !== '') ? implode(', ', $selectedSchools) : null,
+                ':metro_stations'     => ($form['metro_stations'] !== '') ? $form['metro_stations'] : null,
+                ':gender_requirement' => ($form['gender_requirement'] !== '') ? $form['gender_requirement'] : null,
+                ':need_count'         => ($form['need_count'] !== '') ? (int)$form['need_count'] : null,
+                ':remaining_months'   => ($postType === 'sublet' && $form['remaining_months'] !== '') ? (int)$form['remaining_months'] : null,
+                ':move_in_date'       => ($postType === 'sublet' && $form['move_in_date'] !== '') ? $form['move_in_date'] : null,
+                ':renewable'          => ($postType === 'sublet' && $form['renewable'] !== '') ? $form['renewable'] : null,
+                ':images'             => !empty($savedImagePaths) ? json_encode($savedImagePaths, JSON_UNESCAPED_UNICODE) : null,
+                ':status'             => 'active',
+            ]);
+            $redirectTab = 'rent';
+            if ($postType === 'sublet') {
+                $redirectTab = 'sublet';
+            } elseif (in_array($postType, ['roommate-source', 'roommate-nosource'], true)) {
+                $redirectTab = 'roommate';
+            }
+            header('Location: ../index.php?tab=' . urlencode($redirectTab) . '&toast=published');
+            exit;
         }
-        header('Location: ../index.php?tab=' . urlencode($redirectTab) . '&toast=published');
-        exit;
     }
 }
 
@@ -435,6 +548,9 @@ include __DIR__ . '/../includes/header.php';
         <form id="cForm" method="post" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="type" id="cInputType" value="rent">
             <input type="hidden" name="roommate_mode" id="cInputRoommateMode" value="">
+            <?php if ($isEditMode): ?>
+                <input type="hidden" name="post_id" value="<?php echo (int) $editPostId; ?>">
+            <?php endif; ?>
 
             <!-- 标题 -->
             <div class="form-group">
@@ -473,8 +589,9 @@ include __DIR__ . '/../includes/header.php';
                 <!-- 楼层（租房 / 有房找室友） -->
                 <div class="form-group" id="cGroupFloor">
                     <label class="form-label">楼层 <span class="required">*</span></label>
-                    <input type="text" class="form-input" name="floor" id="cFloor"
-                           placeholder="如 15/F、高层"
+                    <input type="number" class="form-input" name="floor" id="cFloor"
+                           placeholder="请输入整数楼层，如 15"
+                           min="0" step="1" inputmode="numeric"
                            value="<?php echo htmlspecialchars($form['floor']); ?>">
                 </div>
             </div>
@@ -992,6 +1109,7 @@ function cApplyRegionMetroConstraint() {
     cSelectedMetros = cSelectedMetros.filter(function(item) {
         return allowed.has(String(item).replace('🚇 ', '').trim());
     });
+    cSelectedMetros = Array.from(new Set(cSelectedMetros));
     cRenderMetroTags();
     const metroInput = document.getElementById('cMetroInput');
     if (metroInput) {
@@ -1169,7 +1287,14 @@ function cValidateForm() {
     const price = parseFloat(document.getElementById('cPrice').value);
     if (isNaN(price) || price < 1000 || price > cfg.maxPrice) { err('价格需在1000-' + cfg.maxPrice + '之间'); return false; }
 
-    if (cfg.showFloor && document.getElementById('cFloor').value.trim() === '') { err('请填写楼层信息'); return false; }
+    if (cfg.showFloor) {
+        const floorRaw = document.getElementById('cFloor').value.trim();
+        if (floorRaw === '') { err('请填写楼层信息'); return false; }
+        const floorNum = Number(floorRaw);
+        if (!Number.isInteger(floorNum) || floorNum < 0) {
+            err('楼层仅支持输入非负整数，不可包含文字'); return false;
+        }
+    }
     if (cfg.showNeedCount) {
         const nc = parseInt(document.getElementById('cNeedCount').value);
         if (isNaN(nc) || nc < 1 || nc > 10) { err('请输入1-10的需求人数'); return false; }
@@ -1288,8 +1413,8 @@ function cSubmit() {
 
 /* ==================== Init ==================== */
 (function init() {
-    // 如果 PHP 回传了错误，直接显示第 2 步
-    <?php if (!empty($errors)): ?>
+    // 编辑模式和后端报错都直接进入第2步，并回填数据
+    <?php if ($isEditMode || !empty($errors)): ?>
     cSelectedType = <?php echo json_encode($form['type']); ?>;
     cRoommateMode = <?php echo json_encode($form['roommate_mode']); ?>;
     if (cSelectedType === 'roommate') {
@@ -1311,13 +1436,16 @@ function cSubmit() {
     (function() {
         const metros = <?php echo json_encode(array_map('trim', explode(',', $form['metro_stations']))); ?>;
         metros.forEach(m => {
+            let picked = false;
             document.querySelectorAll('#cMetroDropdown .metro-option').forEach(el => {
-                if (el.textContent.replace('🚇 ','').trim() === m) {
+                if (!picked && el.textContent.replace('🚇 ','').trim() === m) {
                     el.classList.add('selected');
                     cSelectedMetros.push(el.textContent.trim());
+                    picked = true;
                 }
             });
         });
+        cSelectedMetros = Array.from(new Set(cSelectedMetros));
         cRenderMetroTags();
     })();
     <?php endif; ?>
