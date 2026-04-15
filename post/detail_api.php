@@ -49,6 +49,11 @@ $genderMap = ['male' => '仅限男生', 'female' => '仅限女生', 'any' => '�
 $renewableMap = ['yes' => '可续租', 'no' => '不可续租'];
 $roleLabelMap = ['landlord' => '🏢 房源供给方', 'admin' => '⚙️ 管理员', 'student' => '🎓 港硕学生'];
 $roleLabel = $roleLabelMap[$post['user_role'] ?? 'student'] ?? '🎓 港硕学生';
+$postType = (string) ($post['type'] ?? 'rent');
+$hideContact = in_array($postType, ['roommate-source', 'roommate-nosource', 'sublet'], true);
+$contactText = $hideContact
+    ? '📞 如需联系，请申请'
+    : (!empty($post['user_phone']) ? ('📞 联系方式：' . $post['user_phone']) : '📞 联系方式：登录用户可见');
 
 $images = parse_post_images($post['images'] ?? null);
 $fallback1 = 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop';
@@ -64,9 +69,9 @@ echo json_encode([
         'id' => (int) $post['id'],
         'user_id' => (int) $post['user_id'],
         'title' => (string) ($post['title'] ?? ''),
-        'type' => (string) ($post['type'] ?? 'rent'),
+        'type' => $postType,
         'price' => number_format((float) ($post['price'] ?? 0), 0),
-        'price_label' => ($post['type'] ?? '') === 'roommate-nosource' ? '预算HKD/月' : 'HKD/月',
+        'price_label' => $postType === 'roommate-nosource' ? '预算HKD/月' : 'HKD/月',
         'region' => (string) ($post['region'] ?: '-'),
         'metro' => (string) ($post['metro_stations'] ?: '-'),
         'school' => (string) ($post['school_scope'] ?: '-'),
@@ -77,7 +82,7 @@ echo json_encode([
         'author_initial' => mb_substr((string) ($post['username'] ?: '匿'), 0, 1, 'UTF-8'),
         'author_role' => $roleLabel . (!empty($post['user_school']) ? (' · ' . school_display_name((string) $post['user_school'])) : ''),
         'created_date' => !empty($post['created_at']) ? date('Y-m-d', strtotime((string) $post['created_at'])) : '',
-        'contact' => !empty($post['user_phone']) ? ('📞 联系方式：' . $post['user_phone']) : '📞 联系方式：登录用户可见',
+        'contact' => $contactText,
         'gender_req' => $genderMap[$post['gender_requirement'] ?? ''] ?? '-',
         'need_count' => !empty($post['need_count']) ? ((int) $post['need_count'] . ' 人') : '-',
         'remaining_months' => !empty($post['remaining_months']) ? ((int) $post['remaining_months'] . ' 个月') : '-',

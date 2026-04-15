@@ -7,6 +7,35 @@ $errors            = [];
 $maxImageCount     = 3;
 $maxImageSizeBytes = 5 * 1024 * 1024;
 $validTypes        = ['rent', 'roommate-source', 'roommate-nosource', 'sublet'];
+$userRole          = (string) ($user['role'] ?? '');
+
+function can_publish_type(string $role, string $type): bool
+{
+    if ($role === 'admin') {
+        return true;
+    }
+    if ($role === 'landlord') {
+        return $type === 'rent';
+    }
+    if ($role === 'student') {
+        return in_array($type, ['roommate-source', 'roommate-nosource', 'sublet'], true);
+    }
+    return false;
+}
+
+function publish_role_error(string $role): string
+{
+    if ($role === 'landlord') {
+        return '房源供给方仅可发布租房类型。';
+    }
+    if ($role === 'student') {
+        return '港硕学生仅可发布找室友和转租类型。';
+    }
+    if ($role === 'admin') {
+        return '管理员可发布所有类型。';
+    }
+    return '当前账号角色无发布权限。';
+}
 
 $form = [
     'type'               => 'rent',
@@ -53,9 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 转租仅允许学生发布
-    if ($postType === 'sublet' && (($user['role'] ?? '') !== 'student')) {
-        $errors['type'] = '仅港硕学生可发布转租信息。';
+    if (!can_publish_type($userRole, $postType)) {
+        $errors['type'] = publish_role_error($userRole);
     }
 
     // 标题
@@ -724,6 +752,18 @@ let cRoommateMode  = '';
 let cSelectedMetros = [];
 let cUploadedImages = [];   // base64 previews
 let cFileObjects    = [];   // actual File objects, synced back to <input> before submit
+const cCurrentUserRole = <?php echo json_encode($userRole, JSON_UNESCAPED_UNICODE); ?>;
+
+function cGetTypeDenyMessage(type) {
+    if (cCurrentUserRole === 'admin') return '';
+    if (cCurrentUserRole === 'landlord') {
+        return type === 'rent' ? '' : '房源供给方仅可发布租房类型。';
+    }
+    if (cCurrentUserRole === 'student') {
+        return type === 'rent' ? '港硕学生仅可发布找室友和转租类型。' : '';
+    }
+    return '当前账号角色无发布权限。';
+}
 
 const C_TYPE_CONFIG = {
     'rent': {
@@ -754,6 +794,12 @@ const C_TYPE_CONFIG = {
 
 /* ==================== Step 1: Type Select ==================== */
 function cSelectType(type) {
+    const denyMessage = cGetTypeDenyMessage(type);
+    if (denyMessage) {
+        showToast(denyMessage, 'error');
+        return;
+    }
+
     cSelectedType = type;
     document.querySelectorAll('.create-type-card').forEach(c => c.classList.remove('selected'));
     document.querySelector('.create-type-card[data-type="' + type + '"]').classList.add('selected');

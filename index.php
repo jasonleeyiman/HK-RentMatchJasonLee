@@ -337,14 +337,16 @@ $baseUrl   = 'index.php' . ($baseQuery !== '' ? ('?' . $baseQuery . '&') : '?');
                     $roleLabel = $roleLabelMap[$post['user_role'] ?? 'student'] ?? '🎓 港硕学生';
                     $authorSchoolText = school_display_name($post['user_school'] ?? null);
                     $authorRoleText = $roleLabel . ($authorSchoolText !== '' ? (' · ' . $authorSchoolText) : '');
-                    if (!empty($user) && !empty($post['user_phone'])) {
+                    $postType = $post['type'] ?? 'rent';
+                    if (in_array($postType, ['roommate-source', 'roommate-nosource', 'sublet'], true)) {
+                        $contactText = '📞 如需联系，请申请';
+                    } elseif (!empty($user) && !empty($post['user_phone'])) {
                         $contactText = '📞 联系方式：' . $post['user_phone'];
                     } elseif (!empty($user)) {
                         $contactText = '📞 联系方式：登录用户可见';
                     } else {
                         $contactText = '📞 登录后查看联系方式';
                     }
-                    $postType = $post['type'] ?? 'rent';
                     $badgeClass = match($postType) {
                         'roommate-source'   => 'badge-roommate-source',
                         'roommate-nosource' => 'badge-roommate-nosource',

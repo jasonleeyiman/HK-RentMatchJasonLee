@@ -214,6 +214,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $applicationId = (int) ($_POST['application_id'] ?? 0);
         $decision = trim((string) ($_POST['decision'] ?? ''));
         if ($applicationId <= 0 || !in_array($decision, ['accepted', 'rejected'], true)) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => '处理参数无效。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
             redirect_profile($targetSection, 'error', '处理参数无效。');
         }
 
@@ -232,10 +240,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         if ($stmt->rowCount() <= 0) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => '仅帖子拥有者可处理待处理申请。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
             redirect_profile($targetSection, 'error', '仅帖子拥有者可处理待处理申请。');
         }
+
+        if ($isAjaxRequest) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'message' => $decision === 'accepted' ? '已同意申请。' : '已拒绝申请。',
+                'application_id' => $applicationId,
+                'status' => $decision,
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         redirect_profile($targetSection, 'success', $decision === 'accepted' ? '已同意申请。' : '已拒绝申请。', [
             'received_filter' => $receivedFilterPost,
+            'notice_mode' => 'toast',
         ]);
     }
 }
@@ -901,7 +930,7 @@ include __DIR__ . '/includes/header.php';
                                 $rBadge = $receivedBadgeMap[$received['post_type'] ?? 'rent'] ?? $receivedBadgeMap['rent'];
                                 $applicantSchoolText = school_display_name($received['applicant_school'] ?? null);
                                 ?>
-                                <div class="received-card">
+                                <div class="received-card" data-applicant-phone="<?php echo htmlspecialchars((string) ($received['applicant_phone'] ?? '')); ?>">
                                     <div class="received-header">
                                         <div class="received-applicant">
                                             <div class="received-applicant-avatar"><?php echo htmlspecialchars(mb_substr((string) $received['applicant_name'], 0, 1, 'UTF-8')); ?></div>
@@ -930,21 +959,21 @@ include __DIR__ . '/includes/header.php';
                                         <span class="app-card-time">🕐 <?php echo htmlspecialchars(!empty($received['created_at']) ? date('Y-m-d H:i', strtotime((string) $received['created_at'])) : '-'); ?></span>
                                         <div class="app-card-actions">
                                             <?php if ($receivedStatus === 'pending'): ?>
-                                                <form method="post">
+                                                <form class="js-received-process-form" method="post">
                                                     <input type="hidden" name="action" value="received_process">
                                                     <input type="hidden" name="section" value="received">
                                                     <input type="hidden" name="received_filter" value="<?php echo htmlspecialchars($receivedFilter); ?>">
                                                     <input type="hidden" name="application_id" value="<?php echo (int) $received['id']; ?>">
                                                     <input type="hidden" name="decision" value="accepted">
-                                                    <button class="btn btn-primary btn-small" type="submit">✅ 同意</button>
+                                                    <button class="btn btn-primary btn-small js-received-process-btn" type="submit">✅ 同意</button>
                                                 </form>
-                                                <form method="post">
+                                                <form class="js-received-process-form" method="post">
                                                     <input type="hidden" name="action" value="received_process">
                                                     <input type="hidden" name="section" value="received">
                                                     <input type="hidden" name="received_filter" value="<?php echo htmlspecialchars($receivedFilter); ?>">
                                                     <input type="hidden" name="application_id" value="<?php echo (int) $received['id']; ?>">
                                                     <input type="hidden" name="decision" value="rejected">
-                                                    <button class="btn btn-outline btn-small btn-danger-outline" type="submit">❌ 拒绝</button>
+                                                    <button class="btn btn-outline btn-small btn-danger-outline js-received-process-btn" type="submit">❌ 拒绝</button>
                                                 </form>
                                             <?php endif; ?>
                                         </div>
@@ -1016,9 +1045,6 @@ include __DIR__ . '/includes/header.php';
                     <div class="text-primary-strong" id="profileDetailContact">-</div>
                 </div>
             </div>
-        </div>
-        <div class="detail-actions">
-            <a class="btn btn-primary" id="profileDetailFullLink" href="#">进入完整详情页</a>
         </div>
     </div>
 </div>
@@ -1193,11 +1219,6 @@ function openProfilePostDetail(postId) {
                 renewableItem.style.display = isSublet ? '' : 'none';
             }
 
-            const fullLink = document.getElementById('profileDetailFullLink');
-            if (fullLink) {
-                fullLink.href = <?php echo json_encode(project_base_url('post/detail.php?id='), JSON_UNESCAPED_UNICODE); ?> + encodeURIComponent(String(postId));
-            }
-
             profileDetailImages = [];
             if (type !== 'roommate-nosource') {
                 if (data.image_main) profileDetailImages.push(data.image_main);
@@ -1336,6 +1357,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .finally(function() {
                     submitBtn.disabled = false;
+                });
+        });
+    });
+
+    document.querySelectorAll('.js-received-process-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const card = form.closest('.received-card');
+            const actionsWrap = card ? card.querySelector('.app-card-actions') : null;
+            const statusEl = card ? card.querySelector('.app-status') : null;
+            const submitButtons = actionsWrap ? actionsWrap.querySelectorAll('.js-received-process-btn') : [];
+            submitButtons.forEach(function(btn) { btn.disabled = true; });
+
+            const formData = new FormData(form);
+            fetch(<?php echo json_encode(profile_section_url('received', ['ajax' => '1']), JSON_UNESCAPED_UNICODE); ?>, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData,
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (!data || data.success !== true) {
+                        throw new Error(data && data.message ? data.message : '操作失败，请稍后重试。');
+                    }
+
+                    const nextStatus = data.status === 'accepted' ? 'accepted' : 'rejected';
+                    if (statusEl) {
+                        statusEl.classList.remove('pending', 'accepted', 'rejected');
+                        statusEl.classList.add(nextStatus);
+                        statusEl.textContent = nextStatus === 'accepted' ? '已同意' : '已拒绝';
+                    }
+
+                    if (actionsWrap) {
+                        actionsWrap.innerHTML = '';
+                    }
+
+                    if (nextStatus === 'accepted' && card) {
+                        const phone = (card.getAttribute('data-applicant-phone') || '').trim();
+                        if (phone !== '' && !card.querySelector('.received-contact')) {
+                            const contactBlock = document.createElement('div');
+                            contactBlock.className = 'received-contact visible';
+                            contactBlock.innerHTML = '<div style="font-weight:600;margin-bottom:4px;">📞 申请人联系方式</div><div class="received-contact-item">📱 ' + phone + '</div>';
+                            card.appendChild(contactBlock);
+                        }
+                    }
+
+                    if (typeof showToast === 'function') {
+                        showToast(data.message || (nextStatus === 'accepted' ? '已同意申请。' : '已拒绝申请。'), 'success');
+                    }
+                })
+                .catch(function(error) {
+                    if (typeof showToast === 'function') {
+                        showToast(error.message || '操作失败，请稍后重试。', 'error');
+                    }
+                })
+                .finally(function() {
+                    submitButtons.forEach(function(btn) { btn.disabled = false; });
                 });
         });
     });

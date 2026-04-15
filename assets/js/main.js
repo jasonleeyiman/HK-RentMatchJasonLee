@@ -1,6 +1,9 @@
 let isLoggedIn = typeof window !== 'undefined' && typeof window.isLoggedIn !== 'undefined'
     ? window.isLoggedIn
     : false;
+let currentUserRole = typeof window !== 'undefined' && typeof window.currentUserRole === 'string'
+    ? window.currentUserRole
+    : '';
 let favorites = getInitialFavorites();
 let currentDetailPostId = null;
 
@@ -191,7 +194,25 @@ function openPostModal() {
     openModal('postModal');
 }
 
+function getPublishTypeDenyMessage(type) {
+    if (!isLoggedIn) return '';
+    if (currentUserRole === 'admin') return '';
+    if (currentUserRole === 'landlord') {
+        return type === 'rent' ? '' : '房源供给方仅可发布租房类型。';
+    }
+    if (currentUserRole === 'student') {
+        return type === 'rent' ? '港硕学生仅可发布找室友和转租类型。' : '';
+    }
+    return '当前账号角色无发布权限。';
+}
+
 function selectPostType(element, type) {
+    const denyMessage = getPublishTypeDenyMessage(type);
+    if (denyMessage) {
+        showToast(denyMessage, 'error');
+        return;
+    }
+
     document.querySelectorAll('#postModal .post-type-card').forEach(card => card.classList.remove('selected'));
     element.classList.add('selected');
     element.dataset.postType = type;
@@ -203,6 +224,12 @@ function goToPublish() {
     const selected = document.querySelector('#postModal .post-type-card.selected');
     if (!selected) {
         showToast('请先选择发布类型。', 'error');
+        return;
+    }
+    const selectedType = selected.dataset.postType || '';
+    const denyMessage = getPublishTypeDenyMessage(selectedType);
+    if (denyMessage) {
+        showToast(denyMessage, 'error');
         return;
     }
     const base = typeof window.projectBaseUrl === 'string' ? window.projectBaseUrl : '';

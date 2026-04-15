@@ -341,7 +341,9 @@ include __DIR__ . '/../includes/header.php';
                         </div>
                     <?php endif; ?>
                     <div class="text-primary-strong">
-                        <?php if ($user): ?>
+                        <?php if (($post['type'] ?? 'rent') !== 'rent'): ?>
+                            📞 如需联系，请申请
+                        <?php elseif ($user): ?>
                             <?php if ($post['user_phone']): ?>
                                 📞 联系方式：<?php echo htmlspecialchars($post['user_phone']); ?>
                             <?php else: ?>
