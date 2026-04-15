@@ -46,8 +46,21 @@ if ($region !== '') {
 }
 
 if ($school !== '') {
-    $where[]             = 'p.school_scope LIKE :school';
-    $params[':school'] = '%' . $school . '%';
+    // 筛选值为英文简称（HKU/CityU…），发帖 school_scope 可能存中文全称或简称/混排，需同时匹配
+    $schoolMap = school_options_map();
+    if (array_key_exists($school, $schoolMap)) {
+        $label   = (string) $schoolMap[$school];
+        $cnName  = '';
+        if (preg_match('/^(.+)\s+([A-Za-z0-9]+)\s*$/u', $label, $m)) {
+            $cnName = trim($m[1]);
+        }
+        $where[]                      = '(p.school_scope LIKE :school_scope_code OR p.school_scope LIKE :school_scope_cn)';
+        $params[':school_scope_code'] = '%' . $school . '%';
+        $params[':school_scope_cn']   = $cnName !== '' ? ('%' . $cnName . '%') : ('%' . $school . '%');
+    } else {
+        $where[]            = 'p.school_scope LIKE :school';
+        $params[':school'] = '%' . $school . '%';
+    }
 }
 
 if ($minPrice > 0) {
@@ -61,8 +74,20 @@ if ($maxPrice > 0 && $maxPrice >= $minPrice) {
 }
 
 if (in_array($period, ['short', 'medium', 'long'], true)) {
-    $where[]             = 'p.rent_period = :period';
-    $params[':period'] = $period;
+    // 转租专区：租期筛选仅按 remaining_months（剩余租期）；remaining_months 为空的记录不参与租期筛选
+    // 非转租专区：仍按 rent_period 直接筛选。
+    if ($tab === 'sublet') {
+        if ($period === 'short') {
+            $where[] = '(p.remaining_months IS NOT NULL AND p.remaining_months <= 6)';
+        } elseif ($period === 'medium') {
+            $where[] = '(p.remaining_months IS NOT NULL AND p.remaining_months >= 7 AND p.remaining_months <= 12)';
+        } else {
+            $where[] = '(p.remaining_months IS NOT NULL AND p.remaining_months >= 13)';
+        }
+    } else {
+        $where[]          = 'p.rent_period = :period';
+        $params[':period'] = $period;
+    }
 }
 
 if ($tab === 'roommate' && in_array($source, ['source', 'nosource'], true)) {
