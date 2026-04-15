@@ -105,7 +105,7 @@ $headerTotalUnread = $headerApplicantUnread + $headerOwnerUnread;
                                         default    => '🎓 港硕学生',
                                     };
                                     $schoolText = school_display_name($user['school'] ?? null);
-                                    $school    = $schoolText !== '' ? ' · ' . $schoolText : '';
+                                    $school = (($user['role'] ?? '') === 'admin' || $schoolText === '') ? '' : (' · ' . $schoolText);
                                     echo htmlspecialchars($roleLabel . $school);
                                     ?>
                                 </div>
