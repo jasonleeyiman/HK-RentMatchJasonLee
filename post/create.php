@@ -37,6 +37,35 @@ function publish_role_error(string $role): string
     return '当前账号角色无发布权限。';
 }
 
+function publish_school_options(): array
+{
+    return ['香港大学', '香港中文大学', '香港科技大学', '香港城市大学', '香港理工大学', '香港浸会大学', '岭南大学', '香港教育大学'];
+}
+
+function publish_region_metro_map(): array
+{
+    return [
+        '中西区' => ['坚尼地城', '香港大学', '西营盘', '上环', '中环', '金钟', '香港'],
+        '东区' => ['炮台山', '北角', '鲗鱼涌', '太古', '西湾河', '筲箕湾', '杏花邨', '柴湾'],
+        '南区' => ['海洋公园', '黄竹坑', '利东', '海怡半岛'],
+        '湾仔区' => ['会展', '湾仔', '铜锣湾', '天后'],
+        '九龙城区' => ['红磡', '九龙塘', '何文田', '土瓜湾', '宋皇台', '启德', '黄埔'],
+        '观塘区' => ['九龙湾', '牛头角', '观塘', '蓝田', '油塘'],
+        '深水埗区' => ['石硖尾', '深水埗', '长沙湾', '荔枝角', '美孚', '南昌', '太子'],
+        '黄大仙区' => ['乐富', '黄大仙', '钻石山', '彩虹'],
+        '油尖旺区' => ['柯士甸', '尖东', '尖沙咀', '佐敦', '油麻地', '旺角', '旺角东', '奥运', '九龙'],
+        '离岛区' => ['博览馆', '机场', '欣澳', '东涌', '迪士尼'],
+        '葵青区' => ['葵兴', '葵芳', '荔景', '青衣'],
+        '北区' => ['粉岭', '上水', '落马洲', '罗湖'],
+        '西贡区' => ['调景岭', '将军澳', '坑口', '宝琳', '康城'],
+        '沙田区' => ['大围', '沙田', '火炭', '马场', '大学', '显径', '车公庙', '沙田围', '第一城', '石门', '大水坑', '恒安', '马鞍山', '乌溪沙'],
+        '大埔区' => ['大埔墟', '太和'],
+        '荃湾区' => ['荃湾', '大窝口', '荃湾西'],
+        '屯门区' => ['屯门', '兆康'],
+        '元朗区' => ['天水围', '朗屏', '元朗', '锦上路'],
+    ];
+}
+
 $form = [
     'type'               => 'rent',
     'roommate_mode'      => '',
@@ -149,9 +178,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['region'] = '请选择所属区域。';
     }
 
-    // 学校
-    if ($form['school_scope'] === '') {
+    $schoolOptions = publish_school_options();
+    $selectedSchools = array_values(array_unique(array_filter(array_map('trim', explode(',', $form['school_scope'])), static fn($v) => $v !== '')));
+
+    // 学校（支持多选）
+    if (empty($selectedSchools)) {
         $errors['school_scope'] = '请选择学校范围。';
+    } else {
+        $invalidSchools = array_values(array_filter($selectedSchools, static fn($s) => !in_array($s, $schoolOptions, true)));
+        if (!empty($invalidSchools)) {
+            $errors['school_scope'] = '学校范围包含无效选项。';
+        }
     }
 
     // 地铁站
@@ -163,6 +200,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (count($metroArray) > 5) {
             $errors['metro_stations'] = '最多选择 5 个地铁站！';
+        } else {
+            $regionMetroMap = publish_region_metro_map();
+            $allowedMetros = $regionMetroMap[$form['region']] ?? [];
+            $invalidMetros = array_values(array_filter($metroArray, static fn($m) => !in_array($m, $allowedMetros, true)));
+            if (!empty($invalidMetros)) {
+                $errors['metro_stations'] = '地铁站必须属于所选区域。';
+            }
         }
     }
 
@@ -280,7 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':floor'              => ($form['floor'] !== '') ? $form['floor'] : null,
             ':rent_period'        => $rentPeriodForDb,
             ':region'             => $form['region'],
-            ':school_scope'       => ($form['school_scope'] !== '') ? $form['school_scope'] : null,
+            ':school_scope'       => ($form['school_scope'] !== '') ? implode(', ', $selectedSchools) : null,
             ':metro_stations'     => ($form['metro_stations'] !== '') ? $form['metro_stations'] : null,
             ':gender_requirement' => ($form['gender_requirement'] !== '') ? $form['gender_requirement'] : null,
             ':need_count'         => ($form['need_count'] !== '') ? (int)$form['need_count'] : null,
@@ -515,20 +559,28 @@ include __DIR__ . '/../includes/header.php';
                     </select>
                 </div>
 
-                <!-- 学校范围 -->
+                <!-- 学校范围（多选） -->
                 <div class="form-group">
                     <label class="form-label">学校范围 <span class="required">*</span></label>
-                    <select class="form-select" name="school_scope" id="cSchool">
-                        <option value="">请选择学校</option>
-                        <?php
-                        $schools = ['香港大学','香港中文大学','香港科技大学','香港城市大学',
-                                    '香港理工大学','香港浸会大学','岭南大学','香港教育大学'];
-                        foreach ($schools as $s): ?>
-                            <option value="<?php echo htmlspecialchars($s); ?>" <?php echo $form['school_scope']===$s?'selected':''; ?>>
-                                <?php echo htmlspecialchars($s); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="hidden" name="school_scope" id="cSchoolInput" value="<?php echo htmlspecialchars($form['school_scope']); ?>">
+                    <div class="metro-select" id="cSchoolSelect">
+                        <div class="metro-trigger" onclick="cToggleSchool()">
+                            <div class="metro-tags-wrap" id="cSchoolTags">
+                                <span class="metro-placeholder">点击选择学校（可多选）</span>
+                            </div>
+                            <span style="color:var(--text-hint);font-size:12px;">▼</span>
+                        </div>
+                        <div class="metro-dropdown" id="cSchoolDropdown">
+                            <div style="max-height:240px; overflow-y:auto; padding:4px 0;">
+                                <?php foreach (publish_school_options() as $s): ?>
+                                    <div class="metro-option" onclick="cToggleSchoolItem(this)" data-name="<?php echo htmlspecialchars($s); ?>">
+                                        <div class="metro-option-check"></div>
+                                        🏫 <?php echo htmlspecialchars($s); ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -552,21 +604,6 @@ include __DIR__ . '/../includes/header.php';
                                 placeholder="搜索地铁站..."
                                 style="width:100%; padding:6px 10px; border:1px solid #ddd; border-radius:6px; outline:none;"
                                 oninput="filterMetroStations()">
-                        </div>
-
-                        <!-- 线路按钮 -->
-                        <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #eee;">
-                            <button type="button" class="metro-line-btn all" onclick="switchMetroLine('all')">全部</button>
-                            <button type="button" class="metro-line-btn line1" onclick="switchMetroLine('东铁线')">东铁线</button>
-                            <button type="button" class="metro-line-btn line2" onclick="switchMetroLine('观塘线')">观塘线</button>
-                            <button type="button" class="metro-line-btn line3" onclick="switchMetroLine('港岛线')">港岛线</button>
-                            <button type="button" class="metro-line-btn line4" onclick="switchMetroLine('荃湾线')">荃湾线</button>
-                            <button type="button" class="metro-line-btn line5" onclick="switchMetroLine('屯马线')">屯马线</button>
-                            <button type="button" class="metro-line-btn line6" onclick="switchMetroLine('东涌线')">东涌线</button>
-                            <button type="button" class="metro-line-btn line7" onclick="switchMetroLine('将军澳线')">将军澳线</button>
-                            <button type="button" class="metro-line-btn line8" onclick="switchMetroLine('南港岛线')">南港岛线</button>
-                            <button type="button" class="metro-line-btn line9" onclick="switchMetroLine('机场快线')">机场快线</button>
-                            <button type="button" class="metro-line-btn line10" onclick="switchMetroLine('迪士尼线')">迪士尼线</button>
                         </div>
 
                         <!-- 地铁站分线路列表 -->
@@ -750,9 +787,11 @@ include __DIR__ . '/../includes/header.php';
 let cSelectedType  = '';
 let cRoommateMode  = '';
 let cSelectedMetros = [];
+let cSelectedSchools = [];
 let cUploadedImages = [];   // base64 previews
 let cFileObjects    = [];   // actual File objects, synced back to <input> before submit
 const cCurrentUserRole = <?php echo json_encode($userRole, JSON_UNESCAPED_UNICODE); ?>;
+const C_REGION_METRO_MAP = <?php echo json_encode(publish_region_metro_map(), JSON_UNESCAPED_UNICODE); ?>;
 
 function cGetTypeDenyMessage(type) {
     if (cCurrentUserRole === 'admin') return '';
@@ -892,6 +931,7 @@ function cConfigureForm() {
         const todayStr = new Date().toISOString().split('T')[0];
         if (moveInEl) moveInEl.min = todayStr;
     }
+    cApplyRegionMetroConstraint();
 }
 
 /* ==================== Radio Pills ==================== */
@@ -928,6 +968,36 @@ function cToggleMetroItem(el) {
     cRenderMetroTags();
     document.getElementById('cMetroInput').value = cSelectedMetros.map(m => m.replace('🚇 ', '')).join(', ');
 }
+function cApplyRegionMetroConstraint() {
+    const regionEl = document.getElementById('cRegion');
+    if (!regionEl) return;
+
+    const region = regionEl.value || '';
+    const allowed = new Set((C_REGION_METRO_MAP[region] || []).map(String));
+    const visibleOnce = new Set();
+
+    document.querySelectorAll('#cMetroDropdown .metro-option').forEach(function(el) {
+        const name = String(el.dataset.name || '').trim();
+        const isAllowed = region !== '' && allowed.has(name);
+        const isDuplicate = visibleOnce.has(name);
+        if (!isAllowed || isDuplicate) {
+            el.style.display = 'none';
+            el.classList.remove('selected');
+        } else {
+            el.style.display = 'flex';
+            visibleOnce.add(name);
+        }
+    });
+
+    cSelectedMetros = cSelectedMetros.filter(function(item) {
+        return allowed.has(String(item).replace('🚇 ', '').trim());
+    });
+    cRenderMetroTags();
+    const metroInput = document.getElementById('cMetroInput');
+    if (metroInput) {
+        metroInput.value = cSelectedMetros.map(m => m.replace('🚇 ', '')).join(', ');
+    }
+}
 function filterMetroStations() {
     const kw = document.getElementById('metroSearch').value.toLowerCase().trim();
     const items = document.querySelectorAll('.metro-option');
@@ -945,15 +1015,24 @@ function filterMetroStations() {
 function switchMetroLine(line) {
     currentMetroLine = line;
     document.querySelectorAll('.metro-line-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelector(`.metro-line-btn[onclick="switchMetroLine('${line}')"]`).classList.add('active');
+    const lineBtn = document.querySelector(`.metro-line-btn[onclick="switchMetroLine('${line}')"]`);
+    if (lineBtn) {
+        lineBtn.classList.add('active');
+    }
     
     document.querySelectorAll('.metro-line-group').forEach(g => g.style.display = 'none');
     if (line === 'all') {
     document.querySelectorAll('.metro-line-group').forEach(g => g.style.display = 'none');
-    document.querySelector('.metro-line-group[data-line="all"]').style.display = 'block';
+    const allGroup = document.querySelector('.metro-line-group[data-line="all"]');
+    if (allGroup) {
+        allGroup.style.display = 'block';
+    }
     }
     else {
-        document.querySelector(`.metro-line-group[data-line="${line}"]`).style.display = 'block';
+        const lineGroup = document.querySelector(`.metro-line-group[data-line="${line}"]`);
+        if (lineGroup) {
+            lineGroup.style.display = 'block';
+        }
     }
 }
 
@@ -975,10 +1054,53 @@ function cRenderMetroTags() {
         ).join('');
     }
 }
+
+/* ==================== School ==================== */
+function cToggleSchool() {
+    const dropdown = document.getElementById('cSchoolDropdown');
+    if (dropdown) dropdown.classList.toggle('open');
+}
+function cToggleSchoolItem(el) {
+    el.classList.toggle('selected');
+    const name = String(el.dataset.name || '').trim();
+    if (name === '') return;
+
+    if (el.classList.contains('selected')) {
+        if (!cSelectedSchools.includes(name)) cSelectedSchools.push(name);
+    } else {
+        cSelectedSchools = cSelectedSchools.filter(function(s) { return s !== name; });
+    }
+    cRenderSchoolTags();
+}
+function cRemoveSchool(name) {
+    cSelectedSchools = cSelectedSchools.filter(function(s) { return s !== name; });
+    document.querySelectorAll('#cSchoolDropdown .metro-option').forEach(function(el) {
+        if (String(el.dataset.name || '').trim() === name) el.classList.remove('selected');
+    });
+    cRenderSchoolTags();
+}
+function cRenderSchoolTags() {
+    const container = document.getElementById('cSchoolTags');
+    const input = document.getElementById('cSchoolInput');
+    if (!container || !input) return;
+
+    if (cSelectedSchools.length === 0) {
+        container.innerHTML = '<span class="metro-placeholder">点击选择学校（可多选）</span>';
+    } else {
+        container.innerHTML = cSelectedSchools.map(function(s) {
+            return '<span class="metro-tag">🏫 ' + s + ' <span class="metro-tag-x" onclick="event.stopPropagation();cRemoveSchool(\'' + s + '\')">×</span></span>';
+        }).join('');
+    }
+    input.value = cSelectedSchools.join(', ');
+}
 document.addEventListener('click', function(e) {
     const sel = document.getElementById('cMetroSelect');
     if (sel && !sel.contains(e.target)) {
         document.getElementById('cMetroDropdown').classList.remove('open');
+    }
+    const schoolSel = document.getElementById('cSchoolSelect');
+    if (schoolSel && !schoolSel.contains(e.target)) {
+        document.getElementById('cSchoolDropdown').classList.remove('open');
     }
 });
 
@@ -1069,7 +1191,7 @@ function cValidateForm() {
         }
     }
     if (!document.getElementById('cRegion').value) { err('请选择所属区域'); return false; }
-    if (!document.getElementById('cSchool').value) { err('请选择学校范围'); return false; }
+    if (cSelectedSchools.length === 0) { err('请选择学校范围'); return false; }
     if (cSelectedMetros.length === 0) { err('请选择至少一个地铁站'); return false; }
 
     return ok;
@@ -1085,7 +1207,7 @@ function cBuildPreview() {
     const title    = document.getElementById('cTitle').value;
     const price    = parseFloat(document.getElementById('cPrice').value) || 0;
     const region   = document.getElementById('cRegion').value;
-    const school   = document.getElementById('cSchool').value;
+    const school   = cSelectedSchools.join('、');
     const floor    = document.getElementById('cFloor').value;
     const content  = document.getElementById('cContent').value;
     const periodEl = document.querySelector('#cPeriodGroup input:checked');
@@ -1200,5 +1322,25 @@ function cSubmit() {
     })();
     <?php endif; ?>
     <?php endif; ?>
+
+    // 恢复学校多选（无论是否有后端报错都执行）
+    (function() {
+        const raw = <?php echo json_encode($form['school_scope'], JSON_UNESCAPED_UNICODE); ?>;
+        const schools = String(raw || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        schools.forEach(function(s) {
+            document.querySelectorAll('#cSchoolDropdown .metro-option').forEach(function(el) {
+                if (String(el.dataset.name || '').trim() === s) {
+                    el.classList.add('selected');
+                }
+            });
+            if (!cSelectedSchools.includes(s)) cSelectedSchools.push(s);
+        });
+        cRenderSchoolTags();
+    })();
+    const regionEl = document.getElementById('cRegion');
+    if (regionEl) {
+        regionEl.addEventListener('change', cApplyRegionMetroConstraint);
+    }
+    cApplyRegionMetroConstraint();
 })();
 </script>
