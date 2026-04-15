@@ -84,17 +84,17 @@ $headerTotalUnread = $headerApplicantUnread + $headerOwnerUnread;
                 <?php if ($user): ?>
                     <div class="user-menu">
                         <div class="user-avatar-wrap">
-                            <div class="user-avatar">
+                            <div class="user-avatar" id="headerUserAvatar">
                                 <?php echo htmlspecialchars(mb_substr($user['username'], 0, 1, 'UTF-8')); ?>
                             </div>
                             <?php if ($headerTotalUnread > 0): ?>
                                 <span class="user-avatar-badge" title="未读提醒" aria-label="未读提醒"><?php echo $headerTotalUnread > 99 ? '99+' : (string) $headerTotalUnread; ?></span>
                             <?php endif; ?>
                         </div>
-                        <span class="user-nav-name"><?php echo htmlspecialchars($user['username']); ?></span>
+                        <span class="user-nav-name" id="headerUserNavName"><?php echo htmlspecialchars($user['username']); ?></span>
                         <div class="user-dropdown">
                             <div class="dropdown-header">
-                                <div class="dropdown-name">
+                                <div class="dropdown-name" id="headerDropdownName">
                                     <?php echo htmlspecialchars($user['username']); ?>
                                 </div>
                                 <div class="dropdown-role">

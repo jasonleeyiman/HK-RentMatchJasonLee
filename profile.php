@@ -56,29 +56,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_profile') {
         $username = trim((string) ($_POST['username'] ?? ''));
-        $gender = trim((string) ($_POST['gender'] ?? ''));
         $phone = trim((string) ($_POST['phone'] ?? ''));
 
         if ($username === '' || mb_strlen($username, 'UTF-8') < 2 || mb_strlen($username, 'UTF-8') > 20) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => '昵称需为 2-20 个字符。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
             redirect_profile($targetSection, 'error', '昵称需为 2-20 个字符。');
         }
-        if (!in_array($gender, ['male', 'female', 'other'], true)) {
-            redirect_profile($targetSection, 'error', '性别选项无效。');
-        }
         if ($phone === '' || preg_match('/^\d{8}$/', $phone) !== 1) {
+            if ($isAjaxRequest) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => '电话需为 8 位香港数字。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
             redirect_profile($targetSection, 'error', '电话需为 8 位香港数字。');
         }
 
-        $stmt = $pdo->prepare('UPDATE users SET username = :username, gender = :gender, phone = :phone WHERE id = :id LIMIT 1');
+        $stmt = $pdo->prepare('UPDATE users SET username = :username, phone = :phone WHERE id = :id LIMIT 1');
         $stmt->execute([
             ':username' => $username,
-            ':gender' => $gender,
             ':phone' => $phone,
             ':id' => $currentUserId,
         ]);
 
         $_SESSION['user']['username'] = $username;
-        $_SESSION['user']['gender'] = $gender;
+        $_SESSION['user']['phone'] = $phone;
+
+        if ($isAjaxRequest) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'success' => true,
+                'message' => '个人信息已更新。',
+                'username' => $username,
+                'phone' => $phone,
+                'avatar_initial' => mb_substr($username, 0, 1, 'UTF-8'),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         redirect_profile($targetSection, 'success', '个人信息已更新。');
     }
@@ -563,12 +586,12 @@ include __DIR__ . '/includes/header.php';
         <aside class="profile-sidebar">
             <div class="sidebar-profile-card">
                 <div class="sidebar-profile-banner">
-                    <div class="sidebar-profile-avatar">
+                    <div class="sidebar-profile-avatar" id="sidebarProfileAvatar">
                         <?php echo htmlspecialchars(mb_substr($profileUser['username'], 0, 1, 'UTF-8')); ?>
                     </div>
                 </div>
                 <div class="sidebar-profile-info">
-                    <div class="sidebar-profile-name"><?php echo htmlspecialchars($profileUser['username']); ?></div>
+                    <div class="sidebar-profile-name" id="sidebarProfileName"><?php echo htmlspecialchars($profileUser['username']); ?></div>
                     <div class="sidebar-profile-role"><?php echo htmlspecialchars($roleDisplay); ?></div>
                 </div>
 
@@ -634,7 +657,7 @@ include __DIR__ . '/includes/header.php';
                     </div>
 
                     <div class="profile-avatar-edit">
-                        <div class="profile-avatar-large">
+                        <div class="profile-avatar-large" id="profileAvatarLarge">
                             <?php echo htmlspecialchars(mb_substr($profileUser['username'], 0, 1, 'UTF-8')); ?>
                             <div class="profile-avatar-edit-btn">📷</div>
                         </div>
@@ -646,7 +669,7 @@ include __DIR__ . '/includes/header.php';
 
                         <div class="form-group">
                             <label class="profile-form-label">昵称 <span class="required">*</span></label>
-                            <input class="profile-input profile-input-editable" type="text" name="username" maxlength="20" value="<?php echo htmlspecialchars((string) $profileUser['username']); ?>" required disabled>
+                            <input class="profile-input profile-input-editable" id="profileUsernameInput" type="text" name="username" maxlength="20" value="<?php echo htmlspecialchars((string) $profileUser['username']); ?>" required disabled>
                         </div>
 
                         <div class="form-group">
@@ -670,7 +693,7 @@ include __DIR__ . '/includes/header.php';
 
                         <div class="form-group">
                             <label class="profile-form-label">电话号码 <span class="required">*</span></label>
-                            <input class="profile-input profile-input-editable" type="tel" name="phone" maxlength="8" value="<?php echo htmlspecialchars((string) ($profileUser['phone'] ?? '')); ?>" placeholder="香港 8 位数字" required disabled>
+                            <input class="profile-input profile-input-editable" id="profilePhoneInput" type="tel" name="phone" maxlength="8" value="<?php echo htmlspecialchars((string) ($profileUser['phone'] ?? '')); ?>" placeholder="香港 8 位数字" required disabled>
                         </div>
 
                         <div class="form-group">
@@ -687,7 +710,7 @@ include __DIR__ . '/includes/header.php';
 
                         <div class="profile-actions" id="profileActions">
                             <button type="button" class="btn btn-outline" onclick="cancelProfileEdit()">取消</button>
-                            <button class="btn btn-primary" id="profileSaveBtn" type="submit" onClick="updateProfile()">💾 保存修改</button>
+                            <button class="btn btn-primary" id="profileSaveBtn" type="submit">💾 保存修改</button>
                         </div>
                     </form>
                 </div>
@@ -1050,9 +1073,6 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <script>
-function updateProfile(){
-    
-}
 function toggleProfileEdit() {
     const form = document.getElementById('profileEditForm');
     const btn = document.getElementById('profileEditBtn');
@@ -1239,6 +1259,84 @@ function openProfilePostDetail(postId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    const profileEditForm = document.getElementById('profileEditForm');
+    if (profileEditForm) {
+        profileEditForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const saveBtn = document.getElementById('profileSaveBtn');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+            }
+
+            const formData = new FormData(profileEditForm);
+            fetch(<?php echo json_encode(profile_section_url('profile', ['ajax' => '1']), JSON_UNESCAPED_UNICODE); ?>, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData,
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (!data || data.success !== true) {
+                        throw new Error(data && data.message ? data.message : '保存失败，请稍后重试。');
+                    }
+
+                    const nextUsername = String(data.username || '').trim();
+                    const nextPhone = String(data.phone || '').trim();
+                    const nextAvatarInitial = String(data.avatar_initial || '').trim();
+
+                    const usernameInput = document.getElementById('profileUsernameInput');
+                    const phoneInput = document.getElementById('profilePhoneInput');
+                    const sidebarName = document.getElementById('sidebarProfileName');
+                    const sidebarAvatar = document.getElementById('sidebarProfileAvatar');
+                    const profileAvatarLarge = document.getElementById('profileAvatarLarge');
+                    const headerUserNavName = document.getElementById('headerUserNavName');
+                    const headerDropdownName = document.getElementById('headerDropdownName');
+                    const headerUserAvatar = document.getElementById('headerUserAvatar');
+
+                    if (usernameInput) {
+                        usernameInput.value = nextUsername;
+                        usernameInput.defaultValue = nextUsername;
+                    }
+                    if (phoneInput) {
+                        phoneInput.value = nextPhone;
+                        phoneInput.defaultValue = nextPhone;
+                    }
+                    if (sidebarName) sidebarName.textContent = nextUsername;
+                    if (sidebarAvatar && nextAvatarInitial !== '') {
+                        sidebarAvatar.textContent = nextAvatarInitial;
+                    }
+                    if (profileAvatarLarge && nextAvatarInitial !== '') {
+                        profileAvatarLarge.innerHTML = nextAvatarInitial + '<div class="profile-avatar-edit-btn">📷</div>';
+                    }
+                    if (headerUserNavName) {
+                        headerUserNavName.textContent = nextUsername;
+                    }
+                    if (headerDropdownName) {
+                        headerDropdownName.textContent = nextUsername;
+                    }
+                    if (headerUserAvatar && nextAvatarInitial !== '') {
+                        headerUserAvatar.textContent = nextAvatarInitial;
+                    }
+
+                    if (typeof showToast === 'function') {
+                        showToast(data.message || '个人信息已更新。', 'success');
+                    }
+                    cancelProfileEdit();
+                })
+                .catch(function(error) {
+                    if (typeof showToast === 'function') {
+                        showToast(error.message || '保存失败，请稍后重试。', 'error');
+                    }
+                })
+                .finally(function() {
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                    }
+                });
+        });
+    }
+
     document.querySelectorAll('.js-post-status-form').forEach(function(form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
