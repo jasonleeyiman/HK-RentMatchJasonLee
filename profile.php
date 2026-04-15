@@ -622,18 +622,21 @@ include __DIR__ . '/includes/header.php';
 
                         <div class="form-group">
                             <label class="profile-form-label">性别</label>
-                            <select class="profile-input profile-select profile-input-editable" name="gender" required disabled>
+                            <input class="profile-input" type="text" value="<?php echo htmlspecialchars((string) $profileUser['gender']); ?>" disabled>
+                            <!-- <select class="profile-input profile-select profile-input-editable" name="gender" disabled>
                                 <?php foreach ($genderTextMap as $genderKey => $genderText): ?>
                                     <option value="<?php echo htmlspecialchars($genderKey); ?>" <?php echo ($profileUser['gender'] ?? '') === $genderKey ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($genderText); ?>
                                     </option>
                                 <?php endforeach; ?>
-                            </select>
+                            </select> -->
+                            <div class="profile-field-hint">性別不可修改</div>
                         </div>
 
                         <div class="form-group">
                             <label class="profile-form-label">邮箱 <span class="required">*</span></label>
                             <input class="profile-input" type="text" value="<?php echo htmlspecialchars((string) $profileUser['email']); ?>" disabled>
+                            <div class="profile-field-hint">邮箱不可修改</div>
                         </div>
 
                         <div class="form-group">
@@ -655,7 +658,7 @@ include __DIR__ . '/includes/header.php';
 
                         <div class="profile-actions" id="profileActions">
                             <button type="button" class="btn btn-outline" onclick="cancelProfileEdit()">取消</button>
-                            <button class="btn btn-primary" id="profileSaveBtn" type="submit">💾 保存修改</button>
+                            <button class="btn btn-primary" id="profileSaveBtn" type="submit" onClick="updateProfile()">💾 保存修改</button>
                         </div>
                     </form>
                 </div>
@@ -1021,6 +1024,9 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <script>
+function updateProfile(){
+    
+}
 function toggleProfileEdit() {
     const form = document.getElementById('profileEditForm');
     const btn = document.getElementById('profileEditBtn');
