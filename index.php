@@ -148,7 +148,8 @@ $stmt = $pdo->prepare($listSql);
 $stmt->execute($params);
 $posts = $stmt->fetchAll();
 $favoritePostIds = [];
-if (!empty($user) && (($user['role'] ?? '') === 'student') && !empty($posts)) {
+$canFavorite = !empty($user) && in_array((string) ($user['role'] ?? ''), ['student', 'admin'], true);
+if ($canFavorite && !empty($posts)) {
     $postIds = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['id'], $posts)));
     $placeholders = implode(',', array_fill(0, count($postIds), '?'));
 
