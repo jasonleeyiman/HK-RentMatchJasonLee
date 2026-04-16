@@ -646,10 +646,11 @@ $adminJsV = filemtime(__DIR__ . '/assets/js/admin.js');
                                 $canHide = $st === 'active';
                                 $canRestore = $st === 'hidden' || $st === 'deleted';
                                 $typeCls = match ($tp) {
-                                    'rent'                                 => 'admin-type-pill--rent',
-                                    'sublet'                               => 'admin-type-pill--sublet',
-                                    'roommate-source', 'roommate-nosource' => 'admin-type-pill--roommate',
-                                    default                                => 'admin-type-pill--roommate',
+                                    'rent'              => 'admin-type-pill--rent',
+                                    'sublet'            => 'admin-type-pill--sublet',
+                                    'roommate-source'   => 'admin-type-pill--roommate',
+                                    'roommate-nosource' => 'admin-type-pill--roommate-nosource',
+                                    default             => 'admin-type-pill--roommate',
                                 };
                                 ?>
                                 <tr data-status="<?php echo htmlspecialchars($st); ?>">
