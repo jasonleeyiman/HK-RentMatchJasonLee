@@ -1019,81 +1019,17 @@ include __DIR__ . '/includes/header.php';
     </div>
 </main>
 
-<div class="modal-overlay" id="receivedProcessConfirmModal">
+<div class="modal-overlay" id="sharedConfirmModal">
     <div class="modal" style="max-width:380px;">
         <div class="modal-header">
-            <h2 class="modal-title" id="receivedProcessConfirmTitle" style="font-size:16px;">确认操作</h2>
-            <button class="modal-close" onclick="closeModal('receivedProcessConfirmModal')">×</button>
+            <h2 class="modal-title" id="sharedConfirmTitle" style="font-size:16px;"></h2>
+            <button class="modal-close" onclick="closeSharedConfirm()">×</button>
         </div>
         <div style="padding:24px;">
-            <p id="receivedProcessConfirmMsg" style="margin:0 0 24px;color:var(--text-main);"></p>
+            <p id="sharedConfirmMsg" style="margin:0 0 24px;color:var(--text-main);"></p>
             <div style="display:flex;justify-content:flex-end;gap:12px;">
-                <button class="btn btn-outline btn-small" onclick="closeModal('receivedProcessConfirmModal')">取消</button>
-                <button class="btn btn-small" id="receivedProcessConfirmBtn" onclick="doReceivedProcess()">确定</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="hidePostConfirmModal">
-    <div class="modal" style="max-width:380px;">
-        <div class="modal-header">
-            <h2 class="modal-title" id="hidePostConfirmTitle" style="font-size:16px;">隐藏帖子</h2>
-            <button class="modal-close" onclick="closeModal('hidePostConfirmModal')">×</button>
-        </div>
-        <div style="padding:24px;">
-            <p id="hidePostConfirmMsg" style="margin:0 0 24px;color:var(--text-main);"></p>
-            <div style="display:flex;justify-content:flex-end;gap:12px;">
-                <button class="btn btn-outline btn-small" onclick="closeModal('hidePostConfirmModal')">取消</button>
-                <button class="btn btn-small" id="hidePostConfirmBtn" onclick="doHidePost()">确定</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="deletePostConfirmModal">
-    <div class="modal" style="max-width:380px;">
-        <div class="modal-header">
-            <h2 class="modal-title" style="font-size:16px;">删除帖子</h2>
-            <button class="modal-close" onclick="closeModal('deletePostConfirmModal')">×</button>
-        </div>
-        <div style="padding:24px;">
-            <p style="margin:0 0 24px;color:var(--text-main);">确定要删除该帖子吗？删除后将无法恢复。</p>
-            <div style="display:flex;justify-content:flex-end;gap:12px;">
-                <button class="btn btn-outline btn-small" onclick="closeModal('deletePostConfirmModal')">取消</button>
-                <button class="btn btn-small" style="background:var(--danger);color:#fff;border-color:var(--danger);" onclick="doDeletePost()">确定</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="withdrawConfirmModal">
-    <div class="modal" style="max-width:380px;">
-        <div class="modal-header">
-            <h2 class="modal-title" style="font-size:16px;">撤回申请</h2>
-            <button class="modal-close" onclick="closeModal('withdrawConfirmModal')">×</button>
-        </div>
-        <div style="padding:24px;">
-            <p style="margin:0 0 24px;color:var(--text-main);">确定要撤回该申请吗？</p>
-            <div style="display:flex;justify-content:flex-end;gap:12px;">
-                <button class="btn btn-outline btn-small" onclick="closeModal('withdrawConfirmModal')">取消</button>
-                <button class="btn btn-small" id="withdrawConfirmBtn" style="background:var(--danger);color:#fff;border-color:var(--danger);" onclick="doWithdraw()">确定</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="unfavoriteConfirmModal">
-    <div class="modal" style="max-width:380px;">
-        <div class="modal-header">
-            <h2 class="modal-title" style="font-size:16px;">取消收藏</h2>
-            <button class="modal-close" onclick="closeModal('unfavoriteConfirmModal')">×</button>
-        </div>
-        <div style="padding:24px;">
-            <p style="margin:0 0 24px;color:var(--text-main);">确定要取消收藏该帖子吗？</p>
-            <div style="display:flex;justify-content:flex-end;gap:12px;">
-                <button class="btn btn-outline btn-small" onclick="closeModal('unfavoriteConfirmModal')">取消</button>
-                <button class="btn btn-small" id="unfavoriteConfirmBtn" style="background:var(--danger);color:#fff;border-color:var(--danger);" onclick="doUnfavorite()">确定</button>
+                <button class="btn btn-outline btn-small" onclick="closeSharedConfirm()">取消</button>
+                <button class="btn btn-small" id="sharedConfirmBtn" onclick="execSharedConfirm()">确定</button>
             </div>
         </div>
     </div>
@@ -1234,44 +1170,36 @@ function profileSliderNext() {
     }
 }
 
-let _pendingReceivedForm = null;
-function doReceivedProcess() {
-    closeModal('receivedProcessConfirmModal');
-    if (_pendingReceivedForm) { _pendingReceivedForm.dataset.confirmed = '1'; _pendingReceivedForm.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); _pendingReceivedForm = null; }
-}
-
-let _pendingHideForm = null;
-function doHidePost() {
-    closeModal('hidePostConfirmModal');
-    if (_pendingHideForm) { _pendingHideForm.dataset.confirmed = '1'; _pendingHideForm.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); _pendingHideForm = null; }
-}
-
-let _pendingDeleteForm = null;
-function doDeletePost() {
-    closeModal('deletePostConfirmModal');
-    if (_pendingDeleteForm) { _pendingDeleteForm.dataset.confirmed = '1'; _pendingDeleteForm.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); _pendingDeleteForm = null; }
-}
-
-let _withdrawForm = null;
-function confirmWithdraw(btn) {
-    _withdrawForm = btn.closest('form');
-    const el = document.getElementById('withdrawConfirmModal');
+let _sharedConfirmCallback = null;
+function openConfirmModal(options) {
+    document.getElementById('sharedConfirmTitle').textContent = options.title || '确认';
+    document.getElementById('sharedConfirmMsg').textContent = options.message || '';
+    const btn = document.getElementById('sharedConfirmBtn');
+    const isDanger = options.danger !== false;
+    btn.style.background = isDanger ? 'var(--danger)' : 'var(--primary)';
+    btn.style.borderColor = isDanger ? 'var(--danger)' : 'var(--primary)';
+    btn.style.color = '#fff';
+    _sharedConfirmCallback = options.onConfirm || null;
+    const el = document.getElementById('sharedConfirmModal');
     if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
 }
-function doWithdraw() {
-    closeModal('withdrawConfirmModal');
-    if (_withdrawForm) { _withdrawForm.submit(); _withdrawForm = null; }
+function closeSharedConfirm() {
+    closeModal('sharedConfirmModal');
+    _sharedConfirmCallback = null;
+}
+function execSharedConfirm() {
+    closeModal('sharedConfirmModal');
+    if (_sharedConfirmCallback) { _sharedConfirmCallback(); _sharedConfirmCallback = null; }
 }
 
-let _unfavoriteForm = null;
 function confirmUnfavorite(btn) {
-    _unfavoriteForm = btn.closest('form');
-    const el = document.getElementById('unfavoriteConfirmModal');
-    if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
+    const form = btn.closest('form');
+    openConfirmModal({ title: '取消收藏', message: '确定要取消收藏该帖子吗？', onConfirm: function() { form.submit(); } });
 }
-function doUnfavorite() {
-    closeModal('unfavoriteConfirmModal');
-    if (_unfavoriteForm) { _unfavoriteForm.submit(); _unfavoriteForm = null; }
+
+function confirmWithdraw(btn) {
+    const form = btn.closest('form');
+    openConfirmModal({ title: '撤回申请', message: '确定要撤回该申请吗？', onConfirm: function() { form.submit(); } });
 }
 
 function openProfilePostDetail(postId) {
@@ -1468,19 +1396,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!form.dataset.confirmed) {
                 const isHiding = nextStatusInput.value === 'hidden';
-                _pendingHideForm = form;
-                const titleEl = document.getElementById('hidePostConfirmTitle');
-                const msgEl = document.getElementById('hidePostConfirmMsg');
-                const btnEl = document.getElementById('hidePostConfirmBtn');
-                if (titleEl) titleEl.textContent = isHiding ? '隐藏帖子' : '显示帖子';
-                if (msgEl) msgEl.textContent = isHiding ? '确定要隐藏该帖子吗？隐藏后其他用户将无法看到。' : '确定要重新显示该帖子吗？';
-                if (btnEl) {
-                    btnEl.style.background = isHiding ? 'var(--danger)' : 'var(--primary)';
-                    btnEl.style.borderColor = isHiding ? 'var(--danger)' : 'var(--primary)';
-                    btnEl.style.color = '#fff';
-                }
-                const el = document.getElementById('hidePostConfirmModal');
-                if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
+                openConfirmModal({
+                    title: isHiding ? '隐藏帖子' : '显示帖子',
+                    message: isHiding ? '确定要隐藏该帖子吗？隐藏后其他用户将无法看到。' : '确定要重新显示该帖子吗？',
+                    danger: isHiding,
+                    onConfirm: function() { form.dataset.confirmed = '1'; form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); }
+                });
                 return;
             }
             delete form.dataset.confirmed;
@@ -1547,9 +1468,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!submitBtn) return;
 
             if (!form.dataset.confirmed) {
-                _pendingDeleteForm = form;
-                const el = document.getElementById('deletePostConfirmModal');
-                if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
+                openConfirmModal({
+                    title: '删除帖子',
+                    message: '确定要删除该帖子吗？删除后将无法恢复。',
+                    onConfirm: function() { form.dataset.confirmed = '1'; form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); }
+                });
                 return;
             }
             delete form.dataset.confirmed;
@@ -1615,19 +1538,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!form.dataset.confirmed) {
                 const decision = (form.querySelector('[name="decision"]') || {}).value;
                 const isAccept = decision === 'accepted';
-                _pendingReceivedForm = form;
-                const titleEl = document.getElementById('receivedProcessConfirmTitle');
-                const msgEl = document.getElementById('receivedProcessConfirmMsg');
-                const btnEl = document.getElementById('receivedProcessConfirmBtn');
-                if (titleEl) titleEl.textContent = isAccept ? '同意申请' : '拒绝申请';
-                if (msgEl) msgEl.textContent = isAccept ? '确定要同意该申请吗？' : '确定要拒绝该申请吗？';
-                if (btnEl) {
-                    btnEl.style.background = isAccept ? 'var(--primary)' : 'var(--danger)';
-                    btnEl.style.borderColor = isAccept ? 'var(--primary)' : 'var(--danger)';
-                    btnEl.style.color = '#fff';
-                }
-                const el = document.getElementById('receivedProcessConfirmModal');
-                if (el) { el.classList.add('active'); document.body.style.overflow = 'hidden'; }
+                openConfirmModal({
+                    title: isAccept ? '同意申请' : '拒绝申请',
+                    message: isAccept ? '确定要同意该申请吗？' : '确定要拒绝该申请吗？',
+                    danger: !isAccept,
+                    onConfirm: function() { form.dataset.confirmed = '1'; form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); }
+                });
                 return;
             }
             delete form.dataset.confirmed;
