@@ -749,7 +749,7 @@ include __DIR__ . '/includes/header.php';
                                 <div class="my-post-card" data-post-type="<?php echo htmlspecialchars($postType); ?>">
                                     <div class="my-post-header">
                                         <span class="my-post-type-badge <?php echo htmlspecialchars($badge['class']); ?>"><?php echo htmlspecialchars($badge['text']); ?></span>
-                                        <span class="my-post-status <?php echo $postStatus === 'active' ? 'active' : 'hidden'; ?>">
+                                        <span class="my-post-status <?php echo $postStatus === 'active' ? 'status-active' : 'status-hidden'; ?>">
                                             <?php echo $postStatus === 'active' ? '🟢 正常显示' : '🟡 已隐藏'; ?>
                                         </span>
                                     </div>
@@ -1369,8 +1369,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     nextStatusInput.value = nextStatus;
 
                     if (statusBadge) {
-                        statusBadge.classList.remove('active', 'hidden');
-                        statusBadge.classList.add(currentStatus);
+                        statusBadge.classList.remove('status-active', 'status-hidden');
+                        statusBadge.classList.add(currentStatus === 'active' ? 'status-active' : 'status-hidden');
                         statusBadge.textContent = currentStatus === 'active' ? '🟢 正常显示' : '🟡 已隐藏';
                     }
 
@@ -1606,8 +1606,8 @@ document.addEventListener('DOMContentLoaded', function() {
 .my-post-type-badge.roommate { background:var(--roommate-source); }
 .my-post-type-badge.sublet { background:var(--sublet-color); }
 .my-post-status { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:500; }
-.my-post-status.active { background:#E8F5E9; color:#2E7D32; }
-.my-post-status.hidden { background:#FFF3E0; color:#E65100; }
+.my-post-status.status-active { background:#E8F5E9; color:#2E7D32; }
+.my-post-status.status-hidden { background:#FFF3E0; color:#E65100; }
 .my-post-body { display:flex; gap:16px; }
 .my-post-image { width:140px; height:100px; border-radius:var(--radius-md); object-fit:cover; flex-shrink:0; }
 .my-post-info { flex:1; min-width:0; }
