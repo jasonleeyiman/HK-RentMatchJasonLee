@@ -636,6 +636,7 @@ include __DIR__ . '/../includes/header.php';
                                 style="width:100%; padding:6px 10px; border:1px solid #ddd; border-radius:6px; outline:none;"
                                 oninput="filterMetroStations()">
                         </div>
+                        <div id="cMetroLineFilters" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #eee;"></div>
                         <div style="max-height:240px; overflow-y:auto; padding:4px 0;" id="metroStationList">
                             <div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">请先选择所属区域</div>
                         </div>
@@ -700,10 +701,35 @@ let cSelectedType  = '';
 let cRoommateMode  = '';
 let cSelectedMetros = [];
 let cSelectedSchools = <?php echo json_encode(array_values($selectedSchoolScopes), JSON_UNESCAPED_UNICODE); ?>;
+let cActiveMetroLine = 'all';
 let cUploadedImages = [];   // base64 previews
 let cFileObjects    = [];   // actual File objects, synced back to <input> before submit
 const cCurrentUserRole = <?php echo json_encode($userRole, JSON_UNESCAPED_UNICODE); ?>;
 const C_REGION_METRO_MAP = <?php echo json_encode($regionMetroMap, JSON_UNESCAPED_UNICODE); ?>;
+const C_METRO_LINE_STATIONS = {
+    '东铁线': ['金钟','会展','红磡','旺角东','九龙塘','大围','沙田','火炭','马场','大学','大埔墟','太和','粉岭','上水','落马洲','罗湖'],
+    '观塘线': ['黄埔','何文田','油麻地','旺角','太子','石硖尾','九龙塘','乐富','黄大仙','钻石山','彩虹','九龙湾','牛头角','观塘','蓝田','油塘','调景岭'],
+    '港岛线': ['坚尼地城','香港大学','西营盘','上环','中环','金钟','湾仔','铜锣湾','天后','炮台山','北角','鲗鱼涌','太古','西湾河','筲箕湾','杏花邨','柴湾'],
+    '荃湾线': ['荃湾','大窝口','葵兴','葵芳','荔景','美孚','荔枝角','长沙湾','深水埗','太子','旺角','油麻地','佐敦','尖沙咀','金钟','中环'],
+    '屯马线': ['屯门','兆康','天水围','朗屏','元朗','锦上路','荃湾西','美孚','南昌','柯士甸','尖东','红磡','何文田','土瓜湾','宋皇台','启德','钻石山','显径','大围','车公庙','沙田围','第一城','石门','大水坑','恒安','马鞍山','乌溪沙'],
+    '东涌线': ['香港','九龙','奥运','南昌','荔景','青衣','欣澳','东涌'],
+    '将军澳线': ['北角','鲗鱼涌','油塘','调景岭','将军澳','坑口','宝琳','康城'],
+    '南港岛线': ['金钟','海洋公园','黄竹坑','利东','海怡半岛'],
+    '机场快线': ['博览馆','机场','青衣','九龙','香港'],
+    '迪士尼线': ['迪士尼'],
+};
+const C_METRO_LINE_COLORS = {
+    '东铁线': '#5E2B97',
+    '观塘线': '#1AA7D6',
+    '港岛线': '#0072CE',
+    '荃湾线': '#E31C79',
+    '屯马线': '#8B4A12',
+    '东涌线': '#F28C28',
+    '将军澳线': '#7A3EB1',
+    '南港岛线': '#9BC53D',
+    '机场快线': '#0A7D5A',
+    '迪士尼线': '#E96AA3',
+};
 
 function cGetTypeDenyMessage(type) {
     if (cCurrentUserRole === 'admin') return '';
@@ -913,6 +939,20 @@ function cGetAvailableMetroStations(region) {
     return C_REGION_METRO_MAP[region] || [];
 }
 
+function cGetAvailableMetroLines(region) {
+    const stations = cGetAvailableMetroStations(region);
+    return Object.keys(C_METRO_LINE_STATIONS).filter(function(line) {
+        return C_METRO_LINE_STATIONS[line].some(function(station) { return stations.includes(station); });
+    });
+}
+
+function cGetVisibleMetroStations(region) {
+    const stations = cGetAvailableMetroStations(region);
+    if (cActiveMetroLine === 'all') return stations;
+    const lineStations = C_METRO_LINE_STATIONS[cActiveMetroLine] || [];
+    return stations.filter(function(station) { return lineStations.includes(station); });
+}
+
 function cSyncMetroInput() {
     document.getElementById('cMetroInput').value = cSelectedMetros.map(m => m.replace('🚇 ', '')).join(', ');
 }
@@ -944,37 +984,60 @@ function cToggleMetroItem(el) {
     cSyncMetroInput();
 }
 function filterMetroStations() {
-    const kw = document.getElementById('metroSearch').value.toLowerCase().trim();
-    const items = document.querySelectorAll('#metroStationList .metro-option');
+    cRenderMetroOptions();
+}
 
-    items.forEach(item => {
-        const name = (item.dataset.name || '').toLowerCase();
-        item.style.display = kw === '' || name.includes(kw) ? 'flex' : 'none';
-    });
+function cSwitchMetroLine(line) {
+    cActiveMetroLine = line;
+    cRenderMetroOptions();
 }
 
 function cRenderMetroOptions() {
     const region = document.getElementById('cRegion').value;
     const list = document.getElementById('metroStationList');
-    const stations = cGetAvailableMetroStations(region);
+    const filters = document.getElementById('cMetroLineFilters');
+    const lines = cGetAvailableMetroLines(region);
+    if (cActiveMetroLine !== 'all' && !lines.includes(cActiveMetroLine)) {
+        cActiveMetroLine = 'all';
+    }
+
     if (!region) {
+        if (filters) filters.innerHTML = '';
         list.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">请先选择所属区域</div>';
         return;
     }
+
+    if (filters) {
+        let html = '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'all\')" style="border:1px solid #d7dce3;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (cActiveMetroLine === 'all' ? '#2d6cdf' : '#fff') + ';color:' + (cActiveMetroLine === 'all' ? '#fff' : '#4b5563') + ';">全部</button>';
+        lines.forEach(function(line) {
+            const color = C_METRO_LINE_COLORS[line] || '#6b7280';
+            const active = cActiveMetroLine === line;
+            html += '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'' + esc(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (active ? color : '#fff') + ';color:' + (active ? '#fff' : color) + ';">' + esc(line) + '</button>';
+        });
+        filters.innerHTML = html;
+    }
+
+    const stations = cGetVisibleMetroStations(region);
+    const kw = document.getElementById('metroSearch').value.toLowerCase().trim();
+    const finalStations = stations.filter(function(name) { return kw === '' || name.toLowerCase().includes(kw); });
     if (stations.length === 0) {
         list.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">当前区域暂无可选地铁站</div>';
         return;
     }
+    if (finalStations.length === 0) {
+        list.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">该线路下无匹配站点</div>';
+        return;
+    }
 
-    list.innerHTML = stations.map(name =>
+    list.innerHTML = finalStations.map(name =>
         '<div class="metro-option' + (cSelectedMetros.includes('🚇 ' + name) ? ' selected' : '') + '" onclick="cToggleMetroItem(this)" data-name="' + esc(name) + '"><div class="metro-option-check"></div>🚇 ' + esc(name) + '</div>'
     ).join('');
-    filterMetroStations();
 }
 
 function cHandleRegionChange() {
     const region = document.getElementById('cRegion').value;
     const allowedNames = cGetAvailableMetroStations(region);
+    cActiveMetroLine = 'all';
     const beforeCount = cSelectedMetros.length;
     cSelectedMetros = cSelectedMetros.filter(m => allowedNames.includes(m.replace('🚇 ', '')));
     if (beforeCount !== cSelectedMetros.length) {

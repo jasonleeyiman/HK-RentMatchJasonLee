@@ -1435,6 +1435,7 @@ include __DIR__ . '/includes/header.php';
                             <div style="padding:8px 12px;border-bottom:1px solid #eee;">
                                 <input type="text" id="editMetroSearch" placeholder="搜索地铁站..." style="width:100%;padding:6px 10px;border:1px solid #ddd;border-radius:6px;outline:none;" oninput="profileFilterEditMetroOptions()">
                             </div>
+                            <div id="editMetroLineFilters" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid #eee;"></div>
                             <div style="max-height:220px;overflow-y:auto;padding:4px 0;" id="editMetroOptionList">
                                 <div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">请先选择所属区域</div>
                             </div>
@@ -1625,9 +1626,34 @@ const PROFILE_EDIT_TYPE_LABEL_MAP = {
     'sublet': '🔄 转租'
 };
 const PROFILE_REGION_METRO_MAP = <?php echo json_encode($profileRegionMetroMap, JSON_UNESCAPED_UNICODE); ?>;
+const PROFILE_METRO_LINE_STATIONS = {
+    '东铁线': ['金钟','会展','红磡','旺角东','九龙塘','大围','沙田','火炭','马场','大学','大埔墟','太和','粉岭','上水','落马洲','罗湖'],
+    '观塘线': ['黄埔','何文田','油麻地','旺角','太子','石硖尾','九龙塘','乐富','黄大仙','钻石山','彩虹','九龙湾','牛头角','观塘','蓝田','油塘','调景岭'],
+    '港岛线': ['坚尼地城','香港大学','西营盘','上环','中环','金钟','湾仔','铜锣湾','天后','炮台山','北角','鲗鱼涌','太古','西湾河','筲箕湾','杏花邨','柴湾'],
+    '荃湾线': ['荃湾','大窝口','葵兴','葵芳','荔景','美孚','荔枝角','长沙湾','深水埗','太子','旺角','油麻地','佐敦','尖沙咀','金钟','中环'],
+    '屯马线': ['屯门','兆康','天水围','朗屏','元朗','锦上路','荃湾西','美孚','南昌','柯士甸','尖东','红磡','何文田','土瓜湾','宋皇台','启德','钻石山','显径','大围','车公庙','沙田围','第一城','石门','大水坑','恒安','马鞍山','乌溪沙'],
+    '东涌线': ['香港','九龙','奥运','南昌','荔景','青衣','欣澳','东涌'],
+    '将军澳线': ['北角','鲗鱼涌','油塘','调景岭','将军澳','坑口','宝琳','康城'],
+    '南港岛线': ['金钟','海洋公园','黄竹坑','利东','海怡半岛'],
+    '机场快线': ['博览馆','机场','青衣','九龙','香港'],
+    '迪士尼线': ['迪士尼'],
+};
+const PROFILE_METRO_LINE_COLORS = {
+    '东铁线': '#5E2B97',
+    '观塘线': '#1AA7D6',
+    '港岛线': '#0072CE',
+    '荃湾线': '#E31C79',
+    '屯马线': '#8B4A12',
+    '东涌线': '#F28C28',
+    '将军澳线': '#7A3EB1',
+    '南港岛线': '#9BC53D',
+    '机场快线': '#0A7D5A',
+    '迪士尼线': '#E96AA3',
+};
 let currentEditingPostType = 'rent';
 let profileEditSelectedSchools = [];
 let profileEditSelectedMetros = [];
+let profileEditActiveMetroLine = 'all';
 
 function profileEscapeHtml(text) {
     const div = document.createElement('div');
@@ -1705,34 +1731,81 @@ function profileSetMetroHiddenValue() {
     hiddenInput.value = profileEditSelectedMetros.join(', ');
 }
 
+function profileGetEditAvailableMetroLines(region) {
+    const stations = PROFILE_REGION_METRO_MAP[region] || [];
+    return Object.keys(PROFILE_METRO_LINE_STATIONS).filter(function(line) {
+        return PROFILE_METRO_LINE_STATIONS[line].some(function(station) { return stations.includes(station); });
+    });
+}
+
+function profileGetVisibleMetroStations(region) {
+    const stations = PROFILE_REGION_METRO_MAP[region] || [];
+    if (profileEditActiveMetroLine === 'all') return stations;
+    const lineStations = PROFILE_METRO_LINE_STATIONS[profileEditActiveMetroLine] || [];
+    return stations.filter(function(station) { return lineStations.includes(station); });
+}
+
 function profileRenderEditMetroOptions(region, selectedMetros) {
     const optionList = document.getElementById('editMetroOptionList');
+    const lineFilters = document.getElementById('editMetroLineFilters');
     if (!optionList) return;
     const allowed = PROFILE_REGION_METRO_MAP[region] || [];
     const incoming = Array.isArray(selectedMetros) ? selectedMetros : profileEditSelectedMetros;
     profileEditSelectedMetros = incoming.filter(function(item) { return allowed.includes(item); });
+    const lines = profileGetEditAvailableMetroLines(region);
+    if (profileEditActiveMetroLine !== 'all' && !lines.includes(profileEditActiveMetroLine)) {
+        profileEditActiveMetroLine = 'all';
+    }
 
     if (!region) {
+        if (lineFilters) lineFilters.innerHTML = '';
         optionList.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">请先选择所属区域</div>';
         profileSetMetroHiddenValue();
         profileRenderEditMetroTags();
         return;
     }
+
+    if (lineFilters) {
+        let html = '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'all\')" style="border:1px solid #d7dce3;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (profileEditActiveMetroLine === 'all' ? '#2d6cdf' : '#fff') + ';color:' + (profileEditActiveMetroLine === 'all' ? '#fff' : '#4b5563') + ';">全部</button>';
+        lines.forEach(function(line) {
+            const color = PROFILE_METRO_LINE_COLORS[line] || '#6b7280';
+            const active = profileEditActiveMetroLine === line;
+            html += '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'' + profileEscapeHtml(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (active ? color : '#fff') + ';color:' + (active ? '#fff' : color) + ';">' + profileEscapeHtml(line) + '</button>';
+        });
+        lineFilters.innerHTML = html;
+    }
+
+    const visibleStations = profileGetVisibleMetroStations(region);
+    const kwEl = document.getElementById('editMetroSearch');
+    const keyword = kwEl ? String(kwEl.value || '').toLowerCase().trim() : '';
+    const finalStations = visibleStations.filter(function(name) { return keyword === '' || name.toLowerCase().includes(keyword); });
+
     if (allowed.length === 0) {
         optionList.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">当前区域暂无可选地铁站</div>';
         profileSetMetroHiddenValue();
         profileRenderEditMetroTags();
         return;
     }
+    if (finalStations.length === 0) {
+        optionList.innerHTML = '<div class="metro-empty-state" style="padding:12px 16px;color:var(--text-hint);">该线路下无匹配站点</div>';
+        profileSetMetroHiddenValue();
+        profileRenderEditMetroTags();
+        return;
+    }
 
-    optionList.innerHTML = allowed.map(function(name) {
+    optionList.innerHTML = finalStations.map(function(name) {
         const selectedClass = profileEditSelectedMetros.includes(name) ? ' selected' : '';
         return '<div class="metro-option' + selectedClass + '" onclick="profileToggleEditMetroOption(this)" data-name="'
             + profileEscapeHtml(name) + '"><div class="metro-option-check"></div>🚇 ' + profileEscapeHtml(name) + '</div>';
     }).join('');
-    profileFilterEditMetroOptions();
     profileSetMetroHiddenValue();
     profileRenderEditMetroTags();
+}
+
+function profileSwitchEditMetroLine(line) {
+    profileEditActiveMetroLine = line;
+    const region = document.getElementById('editRegion');
+    profileRenderEditMetroOptions(region ? region.value : '', profileEditSelectedMetros);
 }
 
 function profileRenderEditMetroTags() {
@@ -1783,12 +1856,8 @@ function profileRemoveEditMetro(index) {
 }
 
 function profileFilterEditMetroOptions() {
-    const kwEl = document.getElementById('editMetroSearch');
-    const keyword = kwEl ? String(kwEl.value || '').toLowerCase().trim() : '';
-    document.querySelectorAll('#editMetroOptionList .metro-option').forEach(function(option) {
-        const name = String(option.dataset.name || '').toLowerCase();
-        option.style.display = keyword === '' || name.includes(keyword) ? 'flex' : 'none';
-    });
+    const region = document.getElementById('editRegion');
+    profileRenderEditMetroOptions(region ? region.value : '', profileEditSelectedMetros);
 }
 
 function profileToggleEditFieldsByType(postType) {
@@ -2070,6 +2139,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const editRegion = document.getElementById('editRegion');
     if (editRegion) {
         editRegion.addEventListener('change', function() {
+            profileEditActiveMetroLine = 'all';
             profileRenderEditMetroOptions(editRegion.value || '', profileEditSelectedMetros);
         });
     }
