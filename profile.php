@@ -205,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         redirect_profile($targetSection, 'success', '已取消收藏。', [
             'favorites_filter' => $favoritesFilterPost,
+            'notice_mode' => 'toast',
         ]);
     }
 
