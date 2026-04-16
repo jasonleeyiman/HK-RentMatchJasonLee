@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  basic-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PHP syntax
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli
+          find . -name "*.php" -not -path "./vendor/*" -print0 | xargs -0 -n1 php -l

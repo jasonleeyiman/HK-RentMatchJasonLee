@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/auth.php';
+$user = current_user();
 
 // 读取筛选参数（GET）
 $region    = isset($_GET['region']) ? trim($_GET['region']) : '';
@@ -158,7 +160,7 @@ $stmt = $pdo->prepare($listSql);
 $stmt->execute($params);
 $posts = $stmt->fetchAll();
 $favoritePostIds = [];
-if (!empty($user) && (($user['role'] ?? '') === 'student') && !empty($posts)) {
+if (!empty($user) && in_array((string) ($user['role'] ?? ''), ['student', 'admin'], true) && !empty($posts)) {
     $postIds = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['id'], $posts)));
     $placeholders = implode(',', array_fill(0, count($postIds), '?'));
 
