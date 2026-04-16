@@ -1008,11 +1008,10 @@ function cRenderMetroOptions() {
     }
 
     if (filters) {
-        let html = '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'all\')" style="border:1px solid #d7dce3;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (cActiveMetroLine === 'all' ? '#2d6cdf' : '#fff') + ';color:' + (cActiveMetroLine === 'all' ? '#fff' : '#4b5563') + ';">全部</button>';
+        let html = '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'all\')" style="border:1px solid #2d6cdf;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:#2d6cdf;color:#fff;">全部</button>';
         lines.forEach(function(line) {
             const color = C_METRO_LINE_COLORS[line] || '#6b7280';
-            const active = cActiveMetroLine === line;
-            html += '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'' + esc(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (active ? color : '#fff') + ';color:' + (active ? '#fff' : color) + ';">' + esc(line) + '</button>';
+            html += '<button type="button" onclick="event.stopPropagation();cSwitchMetroLine(\'' + esc(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + color + ';color:#fff;">' + esc(line) + '</button>';
         });
         filters.innerHTML = html;
     }

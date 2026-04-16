@@ -1766,11 +1766,10 @@ function profileRenderEditMetroOptions(region, selectedMetros) {
     }
 
     if (lineFilters) {
-        let html = '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'all\')" style="border:1px solid #d7dce3;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (profileEditActiveMetroLine === 'all' ? '#2d6cdf' : '#fff') + ';color:' + (profileEditActiveMetroLine === 'all' ? '#fff' : '#4b5563') + ';">全部</button>';
+        let html = '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'all\')" style="border:1px solid #2d6cdf;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:#2d6cdf;color:#fff;">全部</button>';
         lines.forEach(function(line) {
             const color = PROFILE_METRO_LINE_COLORS[line] || '#6b7280';
-            const active = profileEditActiveMetroLine === line;
-            html += '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'' + profileEscapeHtml(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + (active ? color : '#fff') + ';color:' + (active ? '#fff' : color) + ';">' + profileEscapeHtml(line) + '</button>';
+            html += '<button type="button" onclick="event.stopPropagation();profileSwitchEditMetroLine(\'' + profileEscapeHtml(line) + '\')" style="border:1px solid ' + color + ';border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;background:' + color + ';color:#fff;">' + profileEscapeHtml(line) + '</button>';
         });
         lineFilters.innerHTML = html;
     }
