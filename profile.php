@@ -1289,10 +1289,12 @@ include __DIR__ . '/includes/header.php';
                                             <div class="received-applicant-avatar"><?php echo htmlspecialchars(mb_substr((string) $received['applicant_name'], 0, 1, 'UTF-8')); ?></div>
                                             <div>
                                                 <div class="received-applicant-name"><?php echo htmlspecialchars((string) $received['applicant_name']); ?></div>
-                                                <div class="received-applicant-school">👤 <?php echo htmlspecialchars($applicantGenderText); ?></div>
-                                                <?php if ($applicantSchoolText !== ''): ?>
-                                                    <div class="received-applicant-school">🎓 <?php echo htmlspecialchars($applicantSchoolText); ?></div>
-                                                <?php endif; ?>
+                                                <div class="received-applicant-meta">
+                                                    <span class="received-applicant-school">👤 <?php echo htmlspecialchars($applicantGenderText); ?></span>
+                                                    <?php if ($applicantSchoolText !== ''): ?>
+                                                        <span class="received-applicant-school">🎓 <?php echo htmlspecialchars($applicantSchoolText); ?></span>
+                                                    <?php endif; ?>
+                                                </div>
                                             </div>
                                         </div>
                                         <span class="app-status <?php echo htmlspecialchars($receivedStatusCls); ?>"><?php echo htmlspecialchars($applicationStatusMap[$receivedStatus] ?? $receivedStatus); ?></span>
@@ -2513,6 +2515,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .received-applicant { display:flex; align-items:center; gap:12px; min-width:0; }
 .received-applicant-avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--primary-light),var(--secondary)); display:flex; align-items:center; justify-content:center; color:white; font-size:18px; font-weight:600; flex-shrink:0; }
 .received-applicant-name { font-size:15px; font-weight:600; color:var(--text-primary); }
+.received-applicant-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .received-applicant-school { font-size:12px; color:var(--text-secondary); }
 .received-post-ref { background:var(--bg-gray); border-radius:var(--radius-md); padding:12px; margin-bottom:12px; display:flex; align-items:center; gap:10px; transition:background .2s; }
 .received-post-ref:hover { background:var(--border); }
