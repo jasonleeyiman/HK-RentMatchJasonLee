@@ -141,11 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['price'] = '请输入1000-' . $maxPrice . '之间的数字。';
     }
 
-    // 楼层（租房和有房找室友必填，且只能为整数）
+    // 楼层（租房和有房找室友必填）
     if (in_array($postType, ['rent', 'roommate-source'], true) && $form['floor'] === '') {
         $errors['floor'] = '请填写楼层信息。';
-    } elseif ($form['floor'] !== '' && (!preg_match('/^\d+$/', $form['floor']) || (int)$form['floor'] < 1)) {
-        $errors['floor'] = '楼层只能填写大于 0 的整数。';
     }
 
     // 租期（转租不要求用户填写）
@@ -491,8 +489,8 @@ include __DIR__ . '/../includes/header.php';
                 <!-- 楼层（租房 / 有房找室友） -->
                 <div class="form-group" id="cGroupFloor">
                     <label class="form-label">楼层 <span class="required">*</span></label>
-                    <input type="number" class="form-input" name="floor" id="cFloor"
-                           placeholder="请输入整数楼层" min="1" step="1" inputmode="numeric"
+                    <input type="text" class="form-input" name="floor" id="cFloor"
+                           placeholder="如 15/F、高层"
                            value="<?php echo htmlspecialchars($form['floor']); ?>">
                 </div>
             </div>
@@ -1082,9 +1080,6 @@ function cValidateForm() {
     if (cfg.showFloor) {
         const floorValue = document.getElementById('cFloor').value.trim();
         if (floorValue === '') { err('请填写楼层信息'); return false; }
-        if (!/^\d+$/.test(floorValue) || parseInt(floorValue, 10) < 1) {
-            err('楼层只能填写大于 0 的整数'); return false;
-        }
     }
     if (cfg.showNeedCount) {
         const nc = parseInt(document.getElementById('cNeedCount').value);

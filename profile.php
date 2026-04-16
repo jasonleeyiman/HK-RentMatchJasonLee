@@ -363,10 +363,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = '价格需在 1000-' . $maxPrice . ' 之间。';
         }
 
-        if (in_array($postType, ['rent', 'roommate-source', 'sublet'], true)) {
-            if ($floor === '' || !preg_match('/^\d+$/', $floor) || (int) $floor < 1) {
-                $errors[] = '楼层需为大于 0 的整数。';
-            }
+        if (in_array($postType, ['rent', 'roommate-source', 'sublet'], true) && $floor === '') {
+            $errors[] = '请填写楼层信息。';
         }
 
         if ($postType !== 'sublet' && !in_array($rentPeriod, ['short', 'medium', 'long'], true)) {
@@ -1379,7 +1377,7 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <div class="form-group" id="editFloorWrap">
                     <label class="profile-form-label">楼层 <span class="required">*</span></label>
-                    <input type="number" class="profile-input" name="floor" id="editFloor" min="1" step="1">
+                    <input type="text" class="profile-input" name="floor" id="editFloor" placeholder="如 15/F、高层">
                 </div>
                 <div class="form-group" id="editRentPeriodWrap">
                     <label class="profile-form-label">租期 <span class="required">*</span></label>
