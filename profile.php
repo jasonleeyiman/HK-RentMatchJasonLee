@@ -1109,7 +1109,7 @@ include __DIR__ . '/includes/header.php';
                                                 <span class="icon-feather js-post-status-icon" style="--icon-url:url('<?php echo htmlspecialchars(project_base_url($postStatus === 'active' ? 'feather/eye-off.svg' : 'feather/eye.svg')); ?>');"></span>
                                             </button>
                                         </form>
-                                        <form method="post" class="js-post-delete-form" onsubmit="return confirm('确认删除该帖子？');">
+                                        <form method="post" class="js-post-delete-form">
                                             <input type="hidden" name="action" value="post_delete">
                                             <input type="hidden" name="section" value="posts">
                                             <input type="hidden" name="posts_filter" value="<?php echo htmlspecialchars($postsFilter); ?>">
@@ -1171,7 +1171,7 @@ include __DIR__ . '/includes/header.php';
                                                 <input type="hidden" name="section" value="favorites">
                                                 <input type="hidden" name="favorites_filter" value="<?php echo htmlspecialchars($favoritesFilter); ?>">
                                                 <input type="hidden" name="post_id" value="<?php echo (int) $fav['post_id']; ?>">
-                                                <button class="btn btn-outline btn-small btn-danger-outline" type="submit">取消收藏</button>
+                                                <button class="btn btn-outline btn-small btn-danger-outline" type="button" onclick="confirmUnfavorite(this);">取消收藏</button>
                                             </form>
                                         </div>
                                     </div>
@@ -1234,12 +1234,12 @@ include __DIR__ . '/includes/header.php';
                                         <span class="app-card-time">🕐 <?php echo htmlspecialchars(!empty($app['created_at']) ? date('Y-m-d H:i', strtotime((string) $app['created_at'])) : '-'); ?></span>
                                         <div class="app-card-actions">
                                             <?php if ($appStatus === 'pending'): ?>
-                                                <form method="post" onsubmit="return confirm('确认撤回该申请？');">
+                                                <form method="post">
                                                     <input type="hidden" name="action" value="application_withdraw">
                                                     <input type="hidden" name="section" value="applications">
                                                     <input type="hidden" name="applications_filter" value="<?php echo htmlspecialchars($applicationsFilter); ?>">
                                                     <input type="hidden" name="application_id" value="<?php echo (int) $app['id']; ?>">
-                                                    <button class="btn btn-outline btn-small" type="submit">↩️ 撤回</button>
+                                                    <button class="btn btn-outline btn-small" type="button" onclick="confirmWithdraw(this);">↩️ 撤回</button>
                                                 </form>
                                             <?php endif; ?>
                                             <a class="btn btn-outline btn-small" href="<?php echo htmlspecialchars(project_base_url('post/detail.php?id=' . (int) $app['post_id'])); ?>" onclick="event.preventDefault(); openProfilePostDetail(<?php echo (int) $app['post_id']; ?>);">查看帖子</a>
@@ -1348,6 +1348,22 @@ include __DIR__ . '/includes/header.php';
         </section>
     </div>
 </main>
+
+<div class="modal-overlay" id="sharedConfirmModal">
+    <div class="modal" style="max-width:380px;">
+        <div class="modal-header">
+            <h2 class="modal-title" id="sharedConfirmTitle" style="font-size:16px;"></h2>
+            <button class="modal-close" type="button" onclick="closeSharedConfirm()">×</button>
+        </div>
+        <div style="padding:24px;">
+            <p id="sharedConfirmMsg" style="margin:0 0 24px;color:var(--text-main);"></p>
+            <div style="display:flex;justify-content:flex-end;gap:12px;">
+                <button class="btn btn-outline btn-small" type="button" onclick="closeSharedConfirm()">取消</button>
+                <button class="btn btn-small" type="button" id="sharedConfirmBtn" onclick="execSharedConfirm()">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal-overlay" id="postEditModal">
     <div class="modal" style="max-width:860px;width:92%;max-height:90vh;overflow:auto;">
@@ -1617,6 +1633,58 @@ function profileSliderNext() {
         profileDetailIndex++;
         profileRenderSlider();
     }
+}
+
+let _sharedConfirmCallback = null;
+function openConfirmModal(options) {
+    const titleEl = document.getElementById('sharedConfirmTitle');
+    const msgEl = document.getElementById('sharedConfirmMsg');
+    const btn = document.getElementById('sharedConfirmBtn');
+    if (titleEl) titleEl.textContent = options.title || '确认';
+    if (msgEl) msgEl.textContent = options.message || '';
+    if (btn) {
+        const isDanger = options.danger !== false;
+        btn.style.background = isDanger ? 'var(--danger)' : 'var(--primary)';
+        btn.style.borderColor = isDanger ? 'var(--danger)' : 'var(--primary)';
+        btn.style.color = '#fff';
+    }
+    _sharedConfirmCallback = options.onConfirm || null;
+    const el = document.getElementById('sharedConfirmModal');
+    if (el) {
+        el.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+}
+function closeSharedConfirm() {
+    closeModal('sharedConfirmModal');
+    _sharedConfirmCallback = null;
+}
+function execSharedConfirm() {
+    closeModal('sharedConfirmModal');
+    if (_sharedConfirmCallback) {
+        _sharedConfirmCallback();
+        _sharedConfirmCallback = null;
+    }
+}
+
+function confirmUnfavorite(btn) {
+    const form = btn && btn.closest ? btn.closest('form') : null;
+    if (!form) return;
+    openConfirmModal({
+        title: '取消收藏',
+        message: '确定要取消收藏该帖子吗？',
+        onConfirm: function() { form.submit(); }
+    });
+}
+
+function confirmWithdraw(btn) {
+    const form = btn && btn.closest ? btn.closest('form') : null;
+    if (!form) return;
+    openConfirmModal({
+        title: '撤回申请',
+        message: '确定要撤回该申请吗？',
+        onConfirm: function() { form.submit(); }
+    });
 }
 
 const PROFILE_EDIT_TYPE_LABEL_MAP = {
@@ -2222,6 +2290,23 @@ document.addEventListener('DOMContentLoaded', function() {
             const nextStatusInput = form.querySelector('.js-next-status');
             if (!submitBtn || !nextStatusInput) return;
 
+            if (!form.dataset.confirmed) {
+                const isHiding = nextStatusInput.value === 'hidden';
+                openConfirmModal({
+                    title: isHiding ? '隐藏帖子' : '显示帖子',
+                    message: isHiding
+                        ? '确定要隐藏该帖子吗？隐藏后其他用户将无法看到。'
+                        : '确定要重新显示该帖子吗？',
+                    danger: isHiding,
+                    onConfirm: function() {
+                        form.dataset.confirmed = '1';
+                        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    }
+                });
+                return;
+            }
+            delete form.dataset.confirmed;
+
             submitBtn.disabled = true;
             const formData = new FormData(form);
 
@@ -2282,6 +2367,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const submitBtn = form.querySelector('.js-post-delete-btn');
             if (!submitBtn) return;
+
+            if (!form.dataset.confirmed) {
+                openConfirmModal({
+                    title: '删除帖子',
+                    message: '确定要删除该帖子吗？删除后无法恢复。',
+                    onConfirm: function() {
+                        form.dataset.confirmed = '1';
+                        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    }
+                });
+                return;
+            }
+            delete form.dataset.confirmed;
+
             submitBtn.disabled = true;
 
             const formData = new FormData(form);
@@ -2339,6 +2438,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.js-received-process-form').forEach(function(form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
+
+            if (!form.dataset.confirmed) {
+                const decisionInput = form.querySelector('[name="decision"]');
+                const decision = decisionInput ? decisionInput.value : '';
+                const isAccept = decision === 'accepted';
+                openConfirmModal({
+                    title: isAccept ? '同意申请' : '拒绝申请',
+                    message: isAccept ? '确定要同意该申请吗？' : '确定要拒绝该申请吗？',
+                    danger: !isAccept,
+                    onConfirm: function() {
+                        form.dataset.confirmed = '1';
+                        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    }
+                });
+                return;
+            }
+            delete form.dataset.confirmed;
 
             const card = form.closest('.received-card');
             const actionsWrap = card ? card.querySelector('.app-card-actions') : null;
