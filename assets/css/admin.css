@@ -609,6 +609,7 @@
 .admin-type-pill--sm { font-size: 12px; }
 .admin-type-pill--rent { background: var(--rent-color); }
 .admin-type-pill--roommate { background: var(--roommate-color); }
+.admin-type-pill--roommate-nosource { background: #26DE81; }
 .admin-type-pill--sublet { background: var(--sublet-color); }
 
 .admin-status-badge {
