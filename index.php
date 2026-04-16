@@ -5,7 +5,7 @@ $user = current_user();
 
 // 读取筛选参数（GET）
 $region    = isset($_GET['region']) ? trim($_GET['region']) : '';
-$school    = isset($_GET['school']) ? trim($_GET['school']) : '';
+$school    = normalize_school_code($_GET['school'] ?? '') ?? '';
 $minPrice  = isset($_GET['min_price']) ? (float) $_GET['min_price'] : 0;
 $maxPrice  = isset($_GET['max_price']) ? (float) $_GET['max_price'] : 0;
 $period    = isset($_GET['period']) ? trim($_GET['period']) : '';
@@ -172,6 +172,11 @@ if (!empty($user) && in_array((string) ($user['role'] ?? ''), ['student', 'admin
 
 // 构建分页链接基础 query（保留其他筛选参数）
 $queryParams = $_GET;
+if ($school === '') {
+    unset($queryParams['school']);
+} else {
+    $queryParams['school'] = $school;
+}
 unset($queryParams['page']);
 $baseQuery = http_build_query($queryParams);
 $baseUrl   = 'index.php' . ($baseQuery !== '' ? ('?' . $baseQuery . '&') : '?');

@@ -62,9 +62,21 @@ function normalize_school_code(?string $school): ?string
     }
 
     $map = school_options_map();
-    foreach (array_keys($map) as $code) {
+    foreach ($map as $code => $label) {
         if (strcasecmp($value, $code) === 0) {
             return $code;
+        }
+
+        $label = trim((string) $label);
+        if ($value === $label) {
+            return $code;
+        }
+
+        if (preg_match('/^(.+?)\s+[A-Za-z0-9]+$/u', $label, $matches) === 1) {
+            $shortLabel = trim((string) $matches[1]);
+            if ($value === $shortLabel) {
+                return $code;
+            }
         }
     }
 
