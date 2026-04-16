@@ -908,9 +908,6 @@ let currentMetroLine = 'all';
 function cToggleMetro() {
     document.getElementById('cMetroDropdown').classList.toggle('open');
 }
-function cToggleMetro() {
-    document.getElementById('cMetroDropdown').classList.toggle('open');
-}
 
 function cToggleMetroItem(el) {
     if (!el.classList.contains('selected') && cSelectedMetros.length >= 5) {
@@ -932,17 +929,15 @@ function cToggleMetroItem(el) {
 }
 function filterMetroStations() {
     const kw = document.getElementById('metroSearch').value.toLowerCase().trim();
-    const items = document.querySelectorAll('.metro-option');
 
-    if (kw !== '') {
-        items.forEach(item => {
-            const name = (item.dataset.name || '').toLowerCase();
-            item.style.display = name.includes(kw) ? 'flex' : 'none';
-        });
-    } else {
-        items.forEach(item => item.style.display = 'flex');
-        switchMetroLine(currentMetroLine);
-    }
+    const activeGroup = document.querySelector('.metro-line-group:not([style*="display: none"])');
+    if (!activeGroup) return;
+    const items = activeGroup.querySelectorAll('.metro-option');
+
+    items.forEach(item => {
+        const name = (item.dataset.name || '').toLowerCase();
+        item.style.display = kw === '' || name.includes(kw) ? 'flex' : 'none';
+    });
 }
 function switchMetroLine(line) {
     currentMetroLine = line;
@@ -1202,5 +1197,6 @@ function cSubmit() {
     })();
     <?php endif; ?>
     <?php endif; ?>
+    switchMetroLine('all');
 })();
 </script>
