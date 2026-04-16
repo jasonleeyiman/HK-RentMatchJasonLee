@@ -148,8 +148,7 @@ $stmt = $pdo->prepare($listSql);
 $stmt->execute($params);
 $posts = $stmt->fetchAll();
 $favoritePostIds = [];
-$canFavorite = !empty($user) && in_array((string) ($user['role'] ?? ''), ['student', 'admin'], true);
-if ($canFavorite && !empty($posts)) {
+if (!empty($user) && (($user['role'] ?? '') === 'student') && !empty($posts)) {
     $postIds = array_values(array_unique(array_map(static fn(array $item): int => (int) $item['id'], $posts)));
     $placeholders = implode(',', array_fill(0, count($postIds), '?'));
 
@@ -393,7 +392,6 @@ $baseUrl   = 'index.php' . ($baseQuery !== '' ? ('?' . $baseQuery . '&') : '?');
                     $moveInDateText = !empty($post['move_in_date']) ? (string)$post['move_in_date'] : '-';
                     $renewableMap = ['yes' => '可续租', 'no' => '不可续租'];
                     $renewableText = $renewableMap[$post['renewable'] ?? ''] ?? '-';
-                    $isOwner = !empty($user) && (int) ($user['id'] ?? 0) > 0 && (int) ($post['user_id'] ?? 0) === (int) ($user['id'] ?? 0);
                     ?>
                     <div
                         class="post-card"
@@ -421,9 +419,7 @@ $baseUrl   = 'index.php' . ($baseQuery !== '' ? ('?' . $baseQuery . '&') : '?');
                         data-image-main="<?php echo htmlspecialchars($detailMain); ?>"
                         data-image-thumb1="<?php echo htmlspecialchars($detailThumb1); ?>"
                         data-image-thumb2="<?php echo htmlspecialchars($detailThumb2); ?>"
-                        data-owner-id="<?php echo (int) ($post['user_id'] ?? 0); ?>"
-                        data-is-owner="<?php echo $isOwner ? 'true' : 'false'; ?>"
-                        data-is-favorited="<?php echo in_array((int) $post['id'], $favoritePostIds, true) ? 'true' : 'false'; ?>"
+			data-is-favorited="<?php echo in_array((int) $post['id'], $favoritePostIds, true) ? 'true' : 'false'; ?>"
                         onclick="openPostDetail(<?php echo (int) $post['id']; ?>)"
                     >
                         <div class="card-image-wrapper">
@@ -716,21 +712,9 @@ $baseUrl   = 'index.php' . ($baseQuery !== '' ? ('?' . $baseQuery . '&') : '?');
                 <button class="btn btn-outline" id="detailFavoriteBtn" onclick="toggleFavoriteDetail(this)">
                     🤍 收藏
                 </button>
-                <button class="btn btn-primary" id="detailPrimaryBtn" onclick="handleDetailPrimaryAction()">
+                <button class="btn btn-primary" onclick="openModal('applyModal')">
                     发送申请
                 </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="detailEditModal">
-        <div class="modal" style="max-width:980px;width:95vw;height:88vh;padding:0;overflow:hidden;">
-            <div class="modal-header" style="padding:12px 16px;">
-                <h2 class="modal-title">编辑帖子</h2>
-                <button class="modal-close" type="button" onclick="closeModal('detailEditModal')">×</button>
-            </div>
-            <div style="height:calc(100% - 56px);">
-                <iframe id="detailEditFrame" title="编辑帖子" style="width:100%;height:100%;border:0;" src="about:blank"></iframe>
             </div>
         </div>
     </div>
